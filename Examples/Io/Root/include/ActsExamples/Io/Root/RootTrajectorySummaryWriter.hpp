@@ -155,6 +155,15 @@ class RootTrajectorySummaryWriter final
       m_err_eTHETA_fit;               ///< Fitted parameters eTHETA err of track
   std::vector<float> m_err_eQOP_fit;  ///< Fitted parameters eQOP err of track
   std::vector<float> m_err_eT_fit;    ///< Fitted parameters eT err of track
+
+  // non-diagonal error matrix elements
+  std::vector<float> m_err_eLOC0LOC1_fit; ///< Fitted parameters eLOC0LOC1 err of track
+  std::vector<float> m_err_eLOC0PHI_fit;  ///< Fitted parameters eLOC0PHI err of track
+  std::vector<float> m_err_eLOC0THETA_fit;  ///< Fitted parameters eLOC0THETA err of track
+  std::vector<float> m_err_eLOC1PHI_fit;  ///< Fitted parameters eLOC1PHI err of track
+  std::vector<float> m_err_eLOC1THETA_fit;  ///< Fitted parameters eLOC1PHI err of track
+  std::vector<float> m_err_eTHETAPHI_fit; ///< Fitted parameters eTHETAPHI err of track
+
   // The residual of fitted parameters
   std::vector<float> m_res_eLOC0_fit;  ///< Fitted parameters eLOC res of track
   std::vector<float>

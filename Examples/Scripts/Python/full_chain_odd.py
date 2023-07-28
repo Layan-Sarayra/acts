@@ -16,6 +16,7 @@ from acts.examples.reconstruction import (
     TruthSeedRanges,
     addCKFTracks,
     CKFPerformanceConfig,
+    TrackSelectorConfig,
     TrackSelectorRanges,
     addAmbiguityResolution,
     AmbiguityResolutionConfig,
@@ -23,13 +24,15 @@ from acts.examples.reconstruction import (
     AmbiguityResolutionMLConfig,
     addVertexFitting,
     VertexFinder,
+
 )
 from common import getOpenDataDetectorDirectory
 from acts.examples.odd import getOpenDataDetector
 
 parser = argparse.ArgumentParser(description="Full chain with the OpenDataDetector")
 
-parser.add_argument("--events", "-n", help="Number of events", type=int, default=100)
+parser.add_argument("--events", "-n", help="Number of events", type=int, default=10)
+
 parser.add_argument(
     "--geant4", help="Use Geant4 instead of fatras", action="store_true"
 )
@@ -51,8 +54,9 @@ g4_simulation = args["geant4"]
 ambiguity_MLSolver = args["MLSolver"]
 u = acts.UnitConstants
 geoDir = getOpenDataDetectorDirectory()
-outputDir = pathlib.Path.cwd() / "odd_output"
+outputDir = pathlib.Path("/eos/user/l/lalsaray/odd_output")
 # acts.examples.dump_args_calls(locals())  # show python binding calls
+
 
 oddMaterialMap = geoDir / "data/odd-material-maps.root"
 oddDigiConfig = geoDir / "config/odd-digi-smearing-config.json"
@@ -73,7 +77,22 @@ with acts.FpeMonitor() if not g4_simulation else contextlib.nullcontext():
         outputDir=str(outputDir),
     )
 
-    if not ttbar:
+    if ttbar:
+        addPythia8(
+            s,
+            hardProcess=["Top:qqbar2ttbar=on"],
+            npileup=60,
+            vtxGen=acts.examples.GaussianVertexGenerator(
+                stddev=acts.Vector4(0.0125 * u.mm, 0.0125 * u.mm, 55.5 * u.mm, 5.0 * u.ns),
+                mean=acts.Vector4(0, 0, 0, 0),
+            ),
+            rnd=rnd,
+            outputDirRoot=outputDir,
+            # outputDirCsv=outputDir,
+        )
+        print("Using Pythia8 with ttbar events for event generation.")
+
+    else:
         addParticleGun(
             s,
             MomentumConfig(1.0 * u.GeV, 10.0 * u.GeV, transverse=True),
@@ -88,21 +107,8 @@ with acts.FpeMonitor() if not g4_simulation else contextlib.nullcontext():
             multiplicity=50,
             rnd=rnd,
         )
-    else:
-        addPythia8(
-            s,
-            hardProcess=["Top:qqbar2ttbar=on"],
-            npileup=50,
-            vtxGen=acts.examples.GaussianVertexGenerator(
-                stddev=acts.Vector4(
-                    0.0125 * u.mm, 0.0125 * u.mm, 55.5 * u.mm, 5.0 * u.ns
-                ),
-                mean=acts.Vector4(0, 0, 0, 0),
-            ),
-            rnd=rnd,
-            outputDirRoot=outputDir,
-            # outputDirCsv=outputDir,
-        )
+        print("Using particle gun for event generation.")
+
     if g4_simulation:
         if s.config.numThreads != 1:
             raise ValueError("Geant 4 simulation does not support multi-threading")
@@ -169,50 +175,39 @@ with acts.FpeMonitor() if not g4_simulation else contextlib.nullcontext():
         s,
         trackingGeometry,
         field,
-        CKFPerformanceConfig(
-            ptMin=1.0 * u.GeV if ttbar else 0.0,
-            nMeasurementsMin=7,
-        ),
-        TrackSelectorRanges(
-            pt=(1.0 * u.GeV, None),
-            absEta=(None, 3.0),
-            loc0=(-4.0 * u.mm, 4.0 * u.mm),
-        ),
+        CKFPerformanceConfig(ptMin=1.0 * u.GeV if ttbar else 0.0,nMeasurementsMin=7,),
+        TrackSelectorRanges(pt=(1.0 * u.GeV, None),absEta=(None, 3.0),loc0=(-4.0 * u.mm, 4.0 * u.mm),),
         outputDirRoot=outputDir,
-        # outputDirCsv=outputDir,
+         #outputDirCsv=outputDir,
     )
 
     if ambiguity_MLSolver:
         addAmbiguityResolutionML(
-            s,
-            AmbiguityResolutionMLConfig(nMeasurementsMin=7),
-            CKFPerformanceConfig(
-                ptMin=1.0 * u.GeV if ttbar else 0.0, nMeasurementsMin=7
-            ),
-            outputDirRoot=outputDir,
-            # outputDirCsv=outputDir,
-            onnxModelFile=os.path.dirname(__file__)
-            + "/MLAmbiguityResolution/duplicateClassifier.onnx",
+          s,
+          AmbiguityResolutionMLConfig(nMeasurementsMin=7),
+          outputDirRoot=outputDir,
+          # outputDirCsv=outputDir,
+          onnxModelFile=os.path.dirname(__file__)
+          + "/MLAmbiguityResolution/duplicateClassifier.onnx",
         )
     else:
         addAmbiguityResolution(
-            s,
-            AmbiguityResolutionConfig(
-                maximumSharedHits=3, maximumIterations=10000, nMeasurementsMin=7
-            ),
-            CKFPerformanceConfig(
-                ptMin=1.0 * u.GeV if ttbar else 0.0,
-                nMeasurementsMin=7,
-            ),
-            outputDirRoot=outputDir,
-            # outputDirCsv=outputDir,
+          s,
+          AmbiguityResolutionConfig(
+              maximumSharedHits=3, maximumIterations=10000, nMeasurementsMin=7
+          ),
+          outputDirRoot=outputDir,
+          # outputDirCsv=outputDir,
         )
 
     addVertexFitting(
-        s,
-        field,
-        vertexFinder=VertexFinder.Iterative,
-        outputDirRoot=outputDir,
+       s,
+       field,
+       vertexFinder=VertexFinder.Iterative,
+       outputDirRoot=outputDir,
     )
 
     s.run()
+
+
+ 
