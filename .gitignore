@@ -41,3 +41,6 @@ build*
 !.gitlab-ci.yml
 !.clang-tidy
 !.oclint
+
+# Ignore files with .so extension
+*.so
