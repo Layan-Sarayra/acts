@@ -41,7 +41,3 @@ build*
 !.gitlab-ci.yml
 !.clang-tidy
 !.oclint
-
-# Ignore files with .so extension (size 256MB)
-*.so
-lib64/libActsCore.so
