@@ -29,7 +29,7 @@ from acts.examples.odd import getOpenDataDetector
 
 parser = argparse.ArgumentParser(description="Full chain with the OpenDataDetector")
 
-parser.add_argument("--events", "-n", help="Number of events", type=int, default=100)
+parser.add_argument("--events", "-n", help="Number of events", type=int, default=1000)
 parser.add_argument(
     "--geant4", help="Use Geant4 instead of fatras", action="store_true"
 )
