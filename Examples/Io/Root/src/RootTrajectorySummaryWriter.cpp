@@ -27,6 +27,8 @@
 #include <limits>
 #include <stdexcept>
 
+#include <fstream>
+
 #include <TFile.h>
 #include <TTree.h>
 
@@ -118,6 +120,15 @@ ActsExamples::RootTrajectorySummaryWriter::RootTrajectorySummaryWriter(
     m_outputTree->Branch("err_eTHETA_fit", &m_err_eTHETA_fit);
     m_outputTree->Branch("err_eQOP_fit", &m_err_eQOP_fit);
     m_outputTree->Branch("err_eT_fit", &m_err_eT_fit);
+    
+    // non-diagonal error matrix elements
+    m_outputTree->Branch("err_eLOC0LOC1_fit", &m_err_eLOC0LOC1_fit);
+    m_outputTree->Branch("err_eLOC0PHI_fit", &m_err_eLOC0PHI_fit); 
+    m_outputTree->Branch("err_eLOC0THETA_fit", &m_err_eLOC0THETA_fit); 
+    m_outputTree->Branch("err_eLOC1PHI_fit", &m_err_eLOC1PHI_fit);  
+    m_outputTree->Branch("err_eLOC1THETA_fit", &m_err_eLOC1THETA_fit); 
+    m_outputTree->Branch("err_eTHETAPHI_fit", &m_err_eTHETAPHI_fit);
+
     m_outputTree->Branch("res_eLOC0_fit", &m_res_eLOC0_fit);
     m_outputTree->Branch("res_eLOC1_fit", &m_res_eLOC1_fit);
     m_outputTree->Branch("res_ePHI_fit", &m_res_ePHI_fit);
@@ -325,10 +336,11 @@ ActsExamples::ProcessCode ActsExamples::RootTrajectorySummaryWriter::writeT(
           NaNfloat, NaNfloat, NaNfloat, NaNfloat, NaNfloat, NaNfloat};
       std::array<float, Acts::eBoundSize> res = {NaNfloat, NaNfloat, NaNfloat,
                                                  NaNfloat, NaNfloat, NaNfloat};
-      std::array<float, Acts::eBoundSize> error = {
-          NaNfloat, NaNfloat, NaNfloat, NaNfloat, NaNfloat, NaNfloat};
-      std::array<float, Acts::eBoundSize> pull = {NaNfloat, NaNfloat, NaNfloat,
-                                                  NaNfloat, NaNfloat, NaNfloat};
+
+      // convert to 2D vectors
+      std::vector<std::vector<float>> error(Acts::eBoundSize, std::vector<float>(Acts::eBoundSize, 0.0));
+      std::vector<std::vector<float>> pull(Acts::eBoundSize, std::vector<float>(Acts::eBoundSize, 0.0));
+
       bool hasFittedParams = false;
       if (traj.hasTrackParameters(trackTip)) {
         hasFittedParams = true;
@@ -348,15 +360,21 @@ ActsExamples::ProcessCode ActsExamples::RootTrajectorySummaryWriter::writeT(
 
         if (boundParam.covariance().has_value()) {
           const auto& covariance = *boundParam.covariance();
+
           for (unsigned int i = 0; i < Acts::eBoundSize; ++i) {
-            error[i] = std::sqrt(covariance(i, i));
-            if (error[i] != 0.0) {
-              pull[i] = res[i] / error[i];
-            } else {
-              pull[i] = std::numeric_limits<double>::quiet_NaN();
+            for (unsigned int j = 0; j < Acts::eBoundSize; j++) {
+
+              error[i][j] = std::sqrt(covariance(i,j));
+
+              if (error[i][j] != 0.0) {
+                pull[i][j] = res[i] / error[i][j];
+              } else {
+                pull[i][i] = std::numeric_limits<double>::quiet_NaN();
+              }
+
             }
           }
-        }
+        }   
       }
 
       // Push the fitted track parameters.
@@ -375,23 +393,37 @@ ActsExamples::ProcessCode ActsExamples::RootTrajectorySummaryWriter::writeT(
       m_res_eQOP_fit.push_back(res[Acts::eBoundQOverP]);
       m_res_eT_fit.push_back(res[Acts::eBoundTime]);
 
-      m_err_eLOC0_fit.push_back(error[Acts::eBoundLoc0]);
-      m_err_eLOC1_fit.push_back(error[Acts::eBoundLoc1]);
-      m_err_ePHI_fit.push_back(error[Acts::eBoundPhi]);
-      m_err_eTHETA_fit.push_back(error[Acts::eBoundTheta]);
-      m_err_eQOP_fit.push_back(error[Acts::eBoundQOverP]);
-      m_err_eT_fit.push_back(error[Acts::eBoundTime]);
+      m_err_eLOC0_fit.push_back(error[Acts::eBoundLoc0][Acts::eBoundLoc0]);
+      m_err_eLOC1_fit.push_back(error[Acts::eBoundLoc1][Acts::eBoundLoc1]);
+      m_err_ePHI_fit.push_back(error[Acts::eBoundPhi][Acts::eBoundPhi]);
+      m_err_eTHETA_fit.push_back(error[Acts::eBoundTheta][Acts::eBoundTheta]);
+      m_err_eQOP_fit.push_back(error[Acts::eBoundQOverP][Acts::eBoundQOverP]);
+      m_err_eT_fit.push_back(error[Acts::eBoundTime][Acts::eBoundTime]);
+      // non-diagonal error matrix elements
+      m_err_eLOC0LOC1_fit.push_back(error[Acts::eBoundLoc0][Acts::eBoundLoc1]);
+      m_err_eLOC0PHI_fit.push_back(error[Acts::eBoundLoc0][Acts::eBoundPhi]);
+      m_err_eLOC0THETA_fit.push_back(error[Acts::eBoundLoc0][Acts::eBoundTheta]);
+      m_err_eLOC1PHI_fit.push_back(error[Acts::eBoundLoc1][Acts::eBoundPhi]);
+      m_err_eLOC1THETA_fit.push_back(error[Acts::eBoundLoc1][Acts::eBoundTheta]);
+      m_err_eTHETAPHI_fit.push_back(error[Acts::eBoundTheta][Acts::eBoundPhi]);      
 
-      m_pull_eLOC0_fit.push_back(pull[Acts::eBoundLoc0]);
-      m_pull_eLOC1_fit.push_back(pull[Acts::eBoundLoc1]);
-      m_pull_ePHI_fit.push_back(pull[Acts::eBoundPhi]);
-      m_pull_eTHETA_fit.push_back(pull[Acts::eBoundTheta]);
-      m_pull_eQOP_fit.push_back(pull[Acts::eBoundQOverP]);
-      m_pull_eT_fit.push_back(pull[Acts::eBoundTime]);
+      m_pull_eLOC0_fit.push_back(pull[Acts::eBoundLoc0][Acts::eBoundLoc0]);
+      m_pull_eLOC1_fit.push_back(pull[Acts::eBoundLoc1][Acts::eBoundLoc1]);
+      m_pull_ePHI_fit.push_back(pull[Acts::eBoundPhi][Acts::eBoundPhi]);
+      m_pull_eTHETA_fit.push_back(pull[Acts::eBoundTheta][Acts::eBoundTheta]);
+      m_pull_eQOP_fit.push_back(pull[Acts::eBoundQOverP][Acts::eBoundQOverP]);
+      m_pull_eT_fit.push_back(pull[Acts::eBoundTime][Acts::eBoundTime]);
 
       m_hasFittedParams.push_back(hasFittedParams);
+
     }  // all subtrajectories
   }    // all trajectories
+
+// std::cout << "err_eLOC0_fit = ";
+// for (const auto& value : m_err_eLOC0_fit) {
+//   std::cout << value << " ";
+// }
+// std::cout << std::endl;
 
   // fill the variables
   m_outputTree->Fill();
@@ -437,12 +469,21 @@ ActsExamples::ProcessCode ActsExamples::RootTrajectorySummaryWriter::writeT(
   m_eTHETA_fit.clear();
   m_eQOP_fit.clear();
   m_eT_fit.clear();
+
   m_err_eLOC0_fit.clear();
   m_err_eLOC1_fit.clear();
   m_err_ePHI_fit.clear();
   m_err_eTHETA_fit.clear();
   m_err_eQOP_fit.clear();
   m_err_eT_fit.clear();
+  // non-diagonal elements
+  m_err_eLOC0LOC1_fit.clear();
+  m_err_eLOC0PHI_fit.clear();
+  m_err_eLOC0THETA_fit.clear();
+  m_err_eLOC1PHI_fit.clear();
+  m_err_eLOC1THETA_fit.clear();
+  m_err_eTHETAPHI_fit.clear();
+
   m_res_eLOC0_fit.clear();
   m_res_eLOC1_fit.clear();
   m_res_ePHI_fit.clear();
