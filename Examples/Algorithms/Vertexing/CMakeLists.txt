@@ -4,6 +4,7 @@ add_library(
   src/IterativeVertexFinderAlgorithm.cpp
   src/TutorialVertexFinderAlgorithm.cpp
   src/VertexFitterAlgorithm.cpp
+  src/KDEgenerator.cpp
 )
 target_include_directories(
   ActsExamplesVertexing
