@@ -11,6 +11,7 @@
 #include "ActsExamples/Vertexing/IterativeVertexFinderAlgorithm.hpp"
 #include "ActsExamples/Vertexing/TutorialVertexFinderAlgorithm.hpp"
 #include "ActsExamples/Vertexing/VertexFitterAlgorithm.hpp"
+#include "ActsExamples/Vertexing/KDEgenerator.hpp"
 
 #include <memory>
 
@@ -47,6 +48,8 @@ void addVertexing(Context& ctx) {
       ActsExamples::VertexFitterAlgorithm, mex, "VertexFitterAlgorithm",
       inputTrackParameters, inputTrajectories, inputProtoVertices,
       outputVertices, bField, doConstrainedFit, constraintPos, constraintCov);
+  
+  ACTS_PYTHON_DECLARE_ALGORITHM(ActsExamples::KDEAlgorithm, mex, "KDEAlgorithm", message);
 }
 
 }  // namespace Acts::Python
