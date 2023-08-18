@@ -8,11 +8,13 @@ parser.add_argument("--events", "-n", help="Number of events", type=int, default
 args = vars(parser.parse_args())
 
 outputDir = pathlib.Path("/eos/user/l/lalsaray/KDE_output")
+s = acts.examples.Sequencer(events=args["events"], numThreads=1, outputDir=str(outputDir),)
 
 @acts.examples.NamedTypeArgs(logLevel=acts.logging.Level)
 def KDE_printer(
     s,
     logLevel: Optional[acts.logging.Level] = None,
+    # outputDirRoot: Optional[Union[Path, str]] = None,   
 ) -> None:
     
     from acts.examples import KDEAlgorithm
@@ -25,7 +27,8 @@ def KDE_printer(
     return s
 
 if __name__ == "__main__":
-
+    args = vars(parser.parse_args())
+    outputDir = pathlib.Path("/eos/user/l/lalsaray/KDE_output")
     os.environ["ACTS_SEQUENCER_DISABLE_FPEMON"] = "1"
 
     s = acts.examples.Sequencer(events=args["events"], numThreads=1, outputDir=str(outputDir))
