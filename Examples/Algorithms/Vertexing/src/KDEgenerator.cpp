@@ -2,14 +2,12 @@
 #include "VertexingHelpers.hpp"
 #include "Acts/Utilities/Logger.hpp"
 #include <iostream>
-#include <fstream> // Include for file output
+#include <fstream>
 #include <vector>
 #include <cmath>
 #include <TFile.h>
 #include <TTree.h>
 #include <TBranch.h>
-
-// Include the header for Long64_t
 #include <TTree.h>
 
 namespace ActsExamples {
@@ -51,9 +49,9 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext& ctx) const {
     std::cout << "I broke here :) 4" << std::endl;
 
     // Define KDE parameters
-    double bandwidth = 1.0; // You can adjust this value based on your data
+    double bandwidth = 1.0;
 
-    // Open a text file to save the KDE values
+    // text file to save the values
     std::ofstream outputFile("KDE_values.txt");
     std::cout << "I broke here :) 5" << std::endl;
     if (!outputFile.is_open()) {
@@ -62,7 +60,7 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext& ctx) const {
         return ActsExamples::ProcessCode::ABORT;
     }
 
-    // Loop over the entries and perform calculations
+    // Loop over the entries to perform calculations
     for (Long64_t entry = 0; entry < inputTree->GetEntries(); ++entry) {
         inputTree->GetEntry(entry);
         std::cout << "I broke here :) 6" << std::endl;
@@ -73,15 +71,11 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext& ctx) const {
             continue;  // Skip this iteration of the loop
         }
 
-        // Use the branches of interest in your KDE calculation here
         for (size_t i = 0; i < err_eLOC0_fit.size(); ++i) {
-            // You can access the relevant branches (eLOC0_fit, eLOC1_fit, etc.) here
             double dataPoint = err_eLOC0_fit[i];
-
             double kdeValue = 0.0;
             std::cout << "I broke here :) 7" << std::endl;
 
-            // Adjusted to only one loop instead of two
             for (size_t j = 0; j < err_eLOC0_fit.size(); ++j) {
                 double diff = (dataPoint - err_eLOC0_fit[j]) / bandwidth;
                 double kernel = exp(-0.5 * diff * diff) / (sqrt(2 * M_PI) * bandwidth);
@@ -95,12 +89,8 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext& ctx) const {
         }
     }
 
-    // Close the text file
     outputFile.close();
-
-    // Clean up memory by closing the ROOT file
     inputFile->Close();
-
     return ActsExamples::ProcessCode::SUCCESS;
 }
 
