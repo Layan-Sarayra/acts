@@ -8,9 +8,12 @@
 #include <memory>
 #include <string>
 
+#include <TTree.h>
+#include <TFile.h>
+
 namespace ActsExamples {
 
-  class KDEAlgorithm final : public IAlgorithm {
+class KDEAlgorithm final : public IAlgorithm {
   public:
     struct Config {
       // Define configuration options here if needed
@@ -26,8 +29,15 @@ namespace ActsExamples {
     // Accessor for configuration
     const Config& config() const { return m_cfg; }
 
+  
   private:
-    Config m_cfg; // Configuration data for the algorithm
-  };
+   Config m_cfg; // Configuration data for the algorithm
+  
+
+   //Define all member vars here
+   TTree *inputTree;
+   TFile *outFile;
+   std::vector<float> *err_eLOC0_fit;
+};
 
 } // namespace ActsExamples
