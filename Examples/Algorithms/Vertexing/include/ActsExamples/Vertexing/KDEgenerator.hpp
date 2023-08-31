@@ -36,8 +36,13 @@ class KDEAlgorithm final : public IAlgorithm {
 
    //Define all member vars here
    TTree *inputTree;
+   TFile *inputFile;
    TFile *outFile;
+   std::vector<float> *eLOC0_fit;
+   std::vector<float> *eLOC1_fit;
    std::vector<float> *err_eLOC0_fit;
+   std::vector<float> *err_eLOC1_fit;
+   std::vector<float> *err_eLOC0LOC1_fit;
 };
 
 } // namespace ActsExamples
