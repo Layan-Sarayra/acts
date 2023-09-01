@@ -18,7 +18,7 @@ namespace ActsExamples {
 KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
     : IAlgorithm("KDEAlgorithm", lvl), m_cfg(cfg){
 
-    outFile = new TFile("/eos/user/l/lalsaray/KDE_output_file.root", "RECREATE");
+    outFile = new TFile("/eos/user/l/lalsaray/KDE_output/KDE_output_file.root", "RECREATE");
 
     // Open the ROOT file and access the TTree and set the TBranches
 
@@ -74,12 +74,12 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
             double dataPoint1 = (*eLOC0_fit)[i];
             double kdeValue = 0.0;
 
-            for (size_t j = 0; j < eLOC0_fit->size(); ++j) {
-                double dataPoint2 = (*eLOC0_fit)[j];
-                double diff = (dataPoint1 - dataPoint2) / bandwidth;
-                double kernel = exp(-0.5 * diff * diff) / (sqrt(2 * M_PI) * bandwidth);
-                kdeValue += kernel;
-            }
+            // for (size_t j = 0; j < eLOC0_fit->size(); ++j) {
+            //     double dataPoint2 = (*eLOC0_fit)[j];
+            //     double diff = (dataPoint1 - dataPoint2) / bandwidth;
+            //     double kernel = exp(-0.5 * diff * diff) / (sqrt(2 * M_PI) * bandwidth);
+            //     kdeValue += kernel;
+            // }
             kdeHistogram->Fill(dataPoint1, kdeValue);
         }
 
@@ -93,6 +93,7 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
     //clean up memory by closing the ROOT file
     delete kdeHistogram;
     outFile->Close();
+    //inputFile->Close();
 
     //close and clear up the input file memory
     if (inputFile) {
