@@ -12,7 +12,6 @@
 #include <TFile.h>
 
 namespace ActsExamples {
-
 class KDEAlgorithm final : public IAlgorithm {
   public:
     struct Config {
@@ -43,6 +42,8 @@ class KDEAlgorithm final : public IAlgorithm {
    std::vector<float> *err_eLOC0_fit;
    std::vector<float> *err_eLOC1_fit;
    std::vector<float> *err_eLOC0LOC1_fit;
+   mutable std::vector<double> sortedTracks; //mutable allows you to modify a member variable within the 'const' execute function.
+   mutable std::vector<double> filteredTracks;
 };
 
 } // namespace ActsExamples

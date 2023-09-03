@@ -14,11 +14,8 @@
 #include <TH1F.h>
 
 namespace ActsExamples {
-
 KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
     : IAlgorithm("KDEAlgorithm", lvl), m_cfg(cfg){
-
-    outFile = new TFile("/eos/user/l/lalsaray/KDE_output/KDE_output_file.root", "RECREATE");
 
     // Open the ROOT file and access the TTree and set the TBranches
 
@@ -48,54 +45,70 @@ KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
     inputTree->SetBranchAddress("err_eLOC1_fit", &err_eLOC1_fit);
     inputTree->SetBranchAddress("err_eLOC0LOC1_fit", &err_eLOC0LOC1_fit);
 
+    outFile = new TFile("/eos/user/l/lalsaray/KDE_output/KDE_output_file.root", "RECREATE");
+
   }
 
 
 ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
 
     Long64_t nentries = inputTree->GetEntries();
-    
+
     // Define KDE parameters
     double bandwidth = 1.0; // You can adjust this value as needed
-    
+
     // Create a histogram to store the KDE results
-    TH1F* kdeHistogram = new TH1F("kdeHistogram", "Kernel Density Estimation", 100, -150.0, 350.0);
+    TH1F* kdeHistogram = new TH1F("kdeHistogram", "Kernel Density Estimation", 100, -7.0, 7.0);
+    kdeHistogram->SetMaximum(5000);
+    outFile->cd(); //switches to write data to the latest directory; aka outFile instead of inputFile
 
-    //std::cout << "Number of events = " << nentries << std::endl; // this should give you 100 events.
-
-    for(Long64_t entry = 0; entry<nentries; entry++){
-        //must load the tree first to get the data; otherwise 0 values would be printed
+    for (Long64_t entry = 0; entry < nentries; entry++) {
+        // Must load the tree first to get the data; otherwise, 0 values would be printed
         Long64_t ientry = inputTree->LoadTree(entry);
-        if(ientry < 0) break;
-        //then we get the entries (events stored)
+        if (ientry < 0) break;
         inputTree->GetEntry(ientry);
 
+        // Add the values of "eLOC0_fit - 3 * eLOC1_fit" to the sortedTracks vector defined in the .hpp file
         for (size_t i = 0; i < eLOC0_fit->size(); ++i) {
-            double dataPoint1 = (*eLOC0_fit)[i];
-            double kdeValue = 0.0;
-
-            // for (size_t j = 0; j < eLOC0_fit->size(); ++j) {
-            //     double dataPoint2 = (*eLOC0_fit)[j];
-            //     double diff = (dataPoint1 - dataPoint2) / bandwidth;
-            //     double kernel = exp(-0.5 * diff * diff) / (sqrt(2 * M_PI) * bandwidth);
-            //     kdeValue += kernel;
-            // }
-            kdeHistogram->Fill(dataPoint1, kdeValue);
+            double value = (*eLOC0_fit)[i] - 3.0 * (*eLOC1_fit)[i];
+            sortedTracks.push_back(value);
         }
-
-        //std::cout << "size of eLOC0_fit = " << eLOC0_fit->size() << std::endl;
-    
     }
 
+    // Sort the tracks in increasing order of "eLOC0_fit - 3 * eLOC1_fit"
+    std::sort(sortedTracks.begin(), sortedTracks.end());
+
+    // Find the minimum value of eLOC0_fit
+    double minELOC0_fit = *std::min_element(eLOC0_fit->begin(), eLOC0_fit->end());
+
+    // Iterate through sortedTracks and add tracks that meet the condition to the filteredTracks vector defined in the .hpp file
+    for (size_t i = 0; i < sortedTracks.size(); ++i) {
+        if (sortedTracks[i] >= minELOC0_fit - 3.0 * (*err_eLOC0_fit)[i]) {
+            filteredTracks.push_back(sortedTracks[i]);
+        }
+    }
+
+    // Perform KDE on the filtered tracks
+    for (size_t i = 0; i < filteredTracks.size(); ++i) {
+        double dataPoint1 = filteredTracks[i];
+        double kdeValue = 0.0;
+
+        for (size_t j = 0; j < sortedTracks.size(); ++j) {
+            double dataPoint2 = filteredTracks[j];
+            double diff = (dataPoint1 - dataPoint2) / bandwidth;
+            double kernel = exp(-0.5 * diff * diff) / (sqrt(2 * M_PI) * bandwidth);
+            kdeValue += kernel;
+        }
+        kdeHistogram->Fill(dataPoint1, kdeValue);
+    }
 
     kdeHistogram->Write();
 
-    //clean up memory by closing the ROOT file
+    // Clean up memory by closing the ROOT file
     delete kdeHistogram;
     outFile->Close();
-    //inputFile->Close();
 
-    //close and clear up the input file memory
+    // Close and clear up the input file memory
     if (inputFile) {
         inputFile->Close();
         delete inputFile;
