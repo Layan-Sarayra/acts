@@ -45,6 +45,13 @@ KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
     inputTree->SetBranchAddress("err_eLOC1_fit", &err_eLOC1_fit);
     inputTree->SetBranchAddress("err_eLOC0LOC1_fit", &err_eLOC0LOC1_fit);
 
+    // Define KDE parameters
+    bandwidth = 1.0; // You can adjust this value as needed
+
+    // Create a histogram to store the KDE results
+    kdeHistogram = new TH1F("kdeHistogram", "Kernel Density Estimation", 100, -7.0, 7.0);
+    kdeHistogram->SetMaximum(5000);
+
     outFile = new TFile("/eos/user/l/lalsaray/KDE_output/KDE_output_file.root", "RECREATE");
 
   }
@@ -54,12 +61,6 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
 
     Long64_t nentries = inputTree->GetEntries();
 
-    // Define KDE parameters
-    double bandwidth = 1.0; // You can adjust this value as needed
-
-    // Create a histogram to store the KDE results
-    TH1F* kdeHistogram = new TH1F("kdeHistogram", "Kernel Density Estimation", 100, -7.0, 7.0);
-    kdeHistogram->SetMaximum(5000);
     outFile->cd(); //switches to write data to the latest directory; aka outFile instead of inputFile
 
     for (Long64_t entry = 0; entry < nentries; entry++) {

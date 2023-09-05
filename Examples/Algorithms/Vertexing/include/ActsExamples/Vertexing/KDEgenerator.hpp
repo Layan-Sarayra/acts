@@ -10,6 +10,7 @@
 
 #include <TTree.h>
 #include <TFile.h>
+#include <TH1F.h>
 
 namespace ActsExamples {
 class KDEAlgorithm final : public IAlgorithm {
@@ -44,6 +45,9 @@ class KDEAlgorithm final : public IAlgorithm {
    std::vector<float> *err_eLOC0LOC1_fit;
    mutable std::vector<double> sortedTracks; //mutable allows you to modify a member variable within the 'const' execute function.
    mutable std::vector<double> filteredTracks;
+
+   double bandwidth;
+   TH1F* kdeHistogram;
 };
 
 } // namespace ActsExamples
