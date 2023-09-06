@@ -54,6 +54,8 @@ KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
 
     outFile = new TFile("/eos/user/l/lalsaray/KDE_output/KDE_output_file.root", "RECREATE");
 
+    std::cout << "I didn't break here 1" << std::endl;
+
   }
 
 
@@ -73,8 +75,11 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
         for (size_t i = 0; i < eLOC1_fit->size(); ++i) {
             double value = (*eLOC1_fit)[i] - 3.0 * (*eLOC0_fit)[i] * (*eLOC1_fit)[i];
             sortedTracks.push_back(value);
+            // std::cout << "size of eLOC1_fit = " << eLOC1_fit->size() << std::endl;
+            // std::cout << "size of value (z0-3dz0) = " << value << std::endl;
         }
     }
+    std::cout << "I didn't break here 2" << std::endl;
 
     // Sort the tracks in increasing order of "eLOC1_fit - 3 * eLOC0_fit * eLOC1_fit"
     std::sort(sortedTracks.begin(), sortedTracks.end());
@@ -87,7 +92,9 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
         if (sortedTracks[i] >= minELOC1_fit - 3.0 * (*err_eLOC1_fit)[i]) {
             filteredTracks.push_back(sortedTracks[i]);
         }
+        // std::cout << "size of sortedTracks =" << sortedTracks.size() << std::endl;
     }
+    std::cout << "I didn't break here 3" << std::endl;
 
     // Perform KDE on the filtered tracks
     for (size_t i = 0; i < filteredTracks.size(); ++i) {
@@ -101,7 +108,10 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
             kdeValue += kernel;
         }
         kdeHistogram->Fill(dataPoint1, kdeValue);
+        // std::cout << "size of filteredTracks =" << filteredTracks.size() << std::endl;
+
     }
+    std::cout << "I didn't break here 4" << std::endl;
 
     kdeHistogram->Write();
 
@@ -114,6 +124,7 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
         inputFile->Close();
         delete inputFile;
     }
+    std::cout << "I didn't break here 5" << std::endl;
 
     return ActsExamples::ProcessCode::SUCCESS;
 }
