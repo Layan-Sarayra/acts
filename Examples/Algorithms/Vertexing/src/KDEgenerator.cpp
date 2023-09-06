@@ -69,22 +69,22 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
         if (ientry < 0) break;
         inputTree->GetEntry(ientry);
 
-        // Add the values of "eLOC0_fit - 3 * eLOC1_fit" to the sortedTracks vector defined in the .hpp file
-        for (size_t i = 0; i < eLOC0_fit->size(); ++i) {
-            double value = (*eLOC0_fit)[i] - 3.0 * (*eLOC1_fit)[i];
+        // Add the values of "eLOC1_fit - 3 * eLOC0_fit * eLOC1_fit" = "z0 - 3dz0" to the sortedTracks vector defined in the .hpp file
+        for (size_t i = 0; i < eLOC1_fit->size(); ++i) {
+            double value = (*eLOC1_fit)[i] - 3.0 * (*eLOC0_fit)[i] * (*eLOC1_fit)[i];
             sortedTracks.push_back(value);
         }
     }
 
-    // Sort the tracks in increasing order of "eLOC0_fit - 3 * eLOC1_fit"
+    // Sort the tracks in increasing order of "eLOC1_fit - 3 * eLOC0_fit * eLOC1_fit"
     std::sort(sortedTracks.begin(), sortedTracks.end());
 
-    // Find the minimum value of eLOC0_fit
-    double minELOC0_fit = *std::min_element(eLOC0_fit->begin(), eLOC0_fit->end());
+    // Find the minimum value of eLOC1_fit
+    double minELOC1_fit = *std::min_element(eLOC1_fit->begin(), eLOC1_fit->end());
 
     // Iterate through sortedTracks and add tracks that meet the condition to the filteredTracks vector defined in the .hpp file
     for (size_t i = 0; i < sortedTracks.size(); ++i) {
-        if (sortedTracks[i] >= minELOC0_fit - 3.0 * (*err_eLOC0_fit)[i]) {
+        if (sortedTracks[i] >= minELOC1_fit - 3.0 * (*err_eLOC1_fit)[i]) {
             filteredTracks.push_back(sortedTracks[i]);
         }
     }
