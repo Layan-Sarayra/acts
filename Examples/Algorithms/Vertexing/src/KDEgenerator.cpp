@@ -56,8 +56,7 @@ KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
 
     nentries = inputTree->GetEntries();
     
-    ientry = -1;
-    ientry +=1;
+    ientry = 0;
 
     entry = inputTree->LoadTree(ientry);
     
@@ -71,6 +70,9 @@ KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
 
 
 ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
+while (ientry < nentries) {
+    std::cout << "Processing entry " << ientry << " out of " << nentries << std::endl;
+
     std::cout<<"Entering Execute"<<std::endl;
   
     if(ientry >= nentries){
@@ -134,7 +136,12 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
     }
     std::cout << "Memory Clean-up Performed" << std::endl;
 
+    ientry +=1;
+}
+    std::cout << "No more events to process. ientry = " << ientry << " nentries = " << nentries << std::endl;
+
     return ActsExamples::ProcessCode::SUCCESS;
+
 }
 
 } //namespace ActsExamples 
