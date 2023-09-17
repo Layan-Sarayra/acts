@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Optional, Union
 
 parser = argparse.ArgumentParser(description="Full chain with the OpenDataDetector")
-parser.add_argument("--events", "-n", help="Number of events", type=int, default=10)
+parser.add_argument("--events", "-n", help="Number of events", type=int, default=100)
 args = vars(parser.parse_args())
 
 outputDir = pathlib.Path("/eos/user/l/lalsaray/KDE_output")

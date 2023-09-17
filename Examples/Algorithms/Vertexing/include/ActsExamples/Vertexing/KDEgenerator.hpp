@@ -39,15 +39,20 @@ class KDEAlgorithm final : public IAlgorithm {
    TFile *inputFile;
    TFile *outFile;
    std::vector<float> *eLOC0_fit;
-   std::vector<float> *eLOC1_fit;
+   std::vector<float> *z_0;
    std::vector<float> *err_eLOC0_fit;
-   std::vector<float> *err_eLOC1_fit;
+   std::vector<float> *sigma_z_0;
    std::vector<float> *err_eLOC0LOC1_fit;
    mutable std::vector<double> sortedTracks; //mutable allows you to modify a member variable within the 'const' execute function.
    mutable std::vector<double> filteredTracks;
 
    double bandwidth;
    TH1F* kdeHistogram;
+
+   mutable Long64_t nentries;
+   mutable Long64_t ientry;
+   mutable Long64_t entry;
+
 };
 
 } // namespace ActsExamples
