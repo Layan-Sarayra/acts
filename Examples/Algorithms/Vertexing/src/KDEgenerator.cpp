@@ -125,23 +125,46 @@ while (ientry < nentries) {
 
     kdeHistogram->Write();
 
-    // Clean up memory by closing the ROOT file
-    delete kdeHistogram;
-    outFile->Close();
-
-    // Close and clear up the input file memory
-    if (inputFile) {
-        inputFile->Close();
-        delete inputFile;
-    }
-    std::cout << "Memory Clean-up Performed" << std::endl;
+    sortedTracks.clear();
+    filteredTracks.clear();
 
     ientry +=1;
 }
-    std::cout << "No more events to process. ientry = " << ientry << " nentries = " << nentries << std::endl;
+
+    std::cout<<"No more events to process"<<std::endl;
 
     return ActsExamples::ProcessCode::SUCCESS;
 
 }
+
+
+KDEAlgorithm::~KDEAlgorithm() {
+    
+    //we will perfom memory clean-up here in the destructor after all events are run
+
+    //histogram
+    if (kdeHistogram) {
+        //kdeHistogram->Reset();
+        delete kdeHistogram;
+        kdeHistogram = nullptr;
+    }
+
+    //output ROOT file
+    if (outFile) {
+        outFile->Close();
+        delete outFile;
+        outFile = nullptr;
+    }
+
+    //input ROOT file
+    if (inputFile) {
+        inputFile->Close();
+        delete inputFile;
+        inputFile = nullptr;
+    }
+
+    std::cout << "Memory Clean-up Performed in Destructor" << std::endl;
+}
+
 
 } //namespace ActsExamples 

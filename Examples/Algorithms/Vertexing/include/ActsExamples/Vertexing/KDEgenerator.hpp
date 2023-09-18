@@ -23,6 +23,9 @@ class KDEAlgorithm final : public IAlgorithm {
     // Constructor
     KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl);
 
+    // Destructor:
+    ~KDEAlgorithm();
+
     // This function will be called on each event by the sequencer
     ProcessCode execute(const AlgorithmContext& ctx) const final;
 
