@@ -10,7 +10,6 @@
 #include <TFile.h>
 #include <TTree.h>
 #include <TBranch.h>
-#include <TTree.h>
 #include <TH1F.h>
 
 namespace ActsExamples {
@@ -39,6 +38,7 @@ KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
     err_eLOC0_fit = 0;
     sigma_z_0 = 0;
     err_eLOC0LOC1_fit = 0;
+
     inputTree->SetBranchAddress("eLOC0_fit", &eLOC0_fit);
     inputTree->SetBranchAddress("eLOC1_fit", &z_0);
     inputTree->SetBranchAddress("err_eLOC0_fit", &err_eLOC0_fit);
@@ -53,43 +53,31 @@ KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
     kdeHistogram->SetMaximum(5000);
 
     outFile = new TFile("/eos/user/l/lalsaray/KDE_output/KDE_output_file.root", "RECREATE");
-
-    nentries = inputTree->GetEntries();
-    
-    ientry = 0;
-
-    entry = inputTree->LoadTree(ientry);
-    
-    std::cout<<"entry = "<<ientry<<" "<<"total entries = "<<nentries<<std::endl;
-    
-    inputTree->GetEntry(entry);
-
-    std::cout << "No Issues in the Constructor" << std::endl;
-
-  }
+          
+}
 
 
-ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
-while (ientry < nentries) {
-    std::cout << "Processing entry " << ientry << " out of " << nentries << std::endl;
+ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const{
 
-    std::cout<<"Entering Execute"<<std::endl;
-  
-    if(ientry >= nentries){
-      std::cout<<"no more events to process "<<ientry<<" "<<nentries<<std::endl;
-      return ActsExamples::ProcessCode::SUCCESS;
-    } 
+    eventNumber++;
 
-    outFile->cd(); //switches to write data to the latest directory; aka outFile instead of inputFile
+    std::cout << "Entering Execute for event " << eventNumber << std::endl;
 
-    // Add the values of "eLOC1_fit - 3 * err_eLOC1_fit" = "z0 - 3dz0" to the sortedTracks vector defined in the .hpp file
+    // Load only for the current event
+    ientry = inputTree->LoadTree(eventNumber);
+    if (ientry < 0) return ActsExamples::ProcessCode::ABORT;
+    inputTree->GetEntry(ientry);
+
+    // Clear previous event data
+    sortedTracks.clear();
+    filteredTracks.clear();
+
+    // Process the current event
     for (size_t i = 0; i < z_0->size(); ++i) {
         double value = (*z_0)[i] - 3.0 * (*sigma_z_0)[i];
         sortedTracks.push_back(value);
-        // std::cout << "size of z_0 = " << z_0->size() << std::endl;
         // std::cout << "size of value (z0-3dz0) = " << value << std::endl;
     }
-    std::cout << "Appended Values of z_0 - 3*dz_0 to the Sorted Tracks" << std::endl;
 
     // Sort the tracks in increasing order of "z_0 - 3 * sigma_z_0"
     std::sort(sortedTracks.begin(), sortedTracks.end());
@@ -104,7 +92,6 @@ while (ientry < nentries) {
         }
         // std::cout << "size of sortedTracks =" << sortedTracks.size() << std::endl;
     }
-    std::cout << "Filtered the Tracks" << std::endl;
 
     // Perform KDE on the filtered tracks
     for (size_t i = 0; i < filteredTracks.size(); ++i) {
@@ -121,17 +108,8 @@ while (ientry < nentries) {
         // std::cout << "size of filteredTracks =" << filteredTracks.size() << std::endl;
 
     }
-    std::cout << "KDE Calculations were Performed" << std::endl;
 
     kdeHistogram->Write();
-
-    sortedTracks.clear();
-    filteredTracks.clear();
-
-    ientry +=1;
-}
-
-    std::cout<<"No more events to process"<<std::endl;
 
     return ActsExamples::ProcessCode::SUCCESS;
 
@@ -144,19 +122,18 @@ KDEAlgorithm::~KDEAlgorithm() {
 
     //histogram
     if (kdeHistogram) {
-        //kdeHistogram->Reset();
         delete kdeHistogram;
         kdeHistogram = nullptr;
     }
 
-    //output ROOT file
+    //output file
     if (outFile) {
         outFile->Close();
         delete outFile;
         outFile = nullptr;
     }
 
-    //input ROOT file
+    //input file
     if (inputFile) {
         inputFile->Close();
         delete inputFile;

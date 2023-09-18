@@ -41,6 +41,7 @@ class KDEAlgorithm final : public IAlgorithm {
    TTree *inputTree;
    TFile *inputFile;
    TFile *outFile;
+   
    std::vector<float> *eLOC0_fit;
    std::vector<float> *z_0;
    std::vector<float> *err_eLOC0_fit;
@@ -52,9 +53,8 @@ class KDEAlgorithm final : public IAlgorithm {
    double bandwidth;
    TH1F* kdeHistogram;
 
-   mutable Long64_t nentries;
    mutable Long64_t ientry;
-   mutable Long64_t entry;
+   mutable Long64_t eventNumber;
 
 };
 
