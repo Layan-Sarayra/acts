@@ -6,6 +6,7 @@
 #include <fstream>
 #include <vector>
 #include <cmath>
+#include <algorithm>
 
 #include <TFile.h>
 #include <TTree.h>
@@ -29,28 +30,31 @@ KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
         ACTS_ERROR("Error getting TTree from ROOT file");
         inputFile->Close();
     }
+
     // call on the inputTree and enable automatic creation of classes to store structured data 
     inputTree->SetMakeClass(1);
 
+
     //Set Objects Pointer and set branches addresses
-    eLOC0_fit = 0;
+    bandwidth = 1.0;
+    nbins = 60;
+    z_min = -180.0;
+    z_max = 180.0;
+
+    d_0 = 0;
     z_0 = 0;
-    err_eLOC0_fit = 0;
-    sigma_z_0 = 0;
-    err_eLOC0LOC1_fit = 0;
+    sigma_d0 = 0;
+    sigma_z0 = 0;
+    sigma_d0_z0 = 0;
 
-    inputTree->SetBranchAddress("eLOC0_fit", &eLOC0_fit);
+    inputTree->SetBranchAddress("eLOC0_fit", &d_0);
     inputTree->SetBranchAddress("eLOC1_fit", &z_0);
-    inputTree->SetBranchAddress("err_eLOC0_fit", &err_eLOC0_fit);
-    inputTree->SetBranchAddress("err_eLOC1_fit", &sigma_z_0);
-    inputTree->SetBranchAddress("err_eLOC0LOC1_fit", &err_eLOC0LOC1_fit);
-
-    // Define KDE parameters
-    bandwidth = 1.0; // You can adjust this value as needed
+    inputTree->SetBranchAddress("err_eLOC0_fit", &sigma_d0);
+    inputTree->SetBranchAddress("err_eLOC1_fit", &sigma_z0);
+    inputTree->SetBranchAddress("err_eLOC0LOC1_fit", &sigma_d0_z0);
 
     // Create a histogram to store the KDE results
-    kdeHistogram = new TH1F("kdeHistogram", "Kernel Density Estimation", 100, -7.0, 7.0);
-    kdeHistogram->SetMaximum(5000);
+    kdeHistogram = new TH1F("kdeHistogram", "Kernel Density Estimation", 100, z_min, z_max);
 
     outFile = new TFile("/eos/user/l/lalsaray/KDE_output/KDE_output_file.root", "RECREATE");
           
@@ -61,12 +65,18 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const{
 
     eventNumber++;
 
-    std::cout << "Entering Execute for event " << eventNumber << std::endl;
+    ACTS_INFO("Entering Execute for event " << eventNumber);
 
     // Load only for the current event
     ientry = inputTree->LoadTree(eventNumber);
     if (ientry < 0) return ActsExamples::ProcessCode::ABORT;
     inputTree->GetEntry(ientry);
+
+    // // to find the minimum and maximum values of z_0
+    // double min_z0 = *std::min_element(z_0->begin(), z_0->end());
+    // double max_z_0 = *std::max_element(z_0->begin(), z_0->end());
+    // std::cout << "Minimum value of z_0: " << min_z0 << std::endl;
+    // std::cout << "Maximum value of z_0: " << max_z_0 << std::endl;
 
     // Clear previous event data
     sortedTracks.clear();
@@ -74,40 +84,55 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const{
 
     // Process the current event
     for (size_t i = 0; i < z_0->size(); ++i) {
-        double value = (*z_0)[i] - 3.0 * (*sigma_z_0)[i];
+        double value = (*z_0)[i] - 3.0 * (*sigma_z0)[i];
         sortedTracks.push_back(value);
         // std::cout << "size of value (z0-3dz0) = " << value << std::endl;
     }
 
-    // Sort the tracks in increasing order of "z_0 - 3 * sigma_z_0"
+    // Sort the tracks in increasing order of "z_0 - 3 * sigma_z0"
     std::sort(sortedTracks.begin(), sortedTracks.end());
 
-    // Find the minimum value of z_0
-    double min_z_0 = *std::min_element(z_0->begin(), z_0->end());
+    // Find the minimum and maximum value of z_0
+    double min_z = *std::min_element(z_0->begin(), z_0->end());
+    double max_z = *std::max_element(z_0->begin(), z_0->end());
 
-    // Iterate through sortedTracks and add tracks that meet the condition to the filteredTracks vector defined in the .hpp file
+    // Iterate through sortedTracks and add tracks that meet the condition of 3sigmas window
     for (size_t i = 0; i < sortedTracks.size(); ++i) {
-        if (sortedTracks[i] >= min_z_0 - 3.0 * (*sigma_z_0)[i]) {
+        double current_z_0 = (*z_0)[i];
+        double current_sigma_z0 = (*sigma_z0)[i];
+        
+        if ((current_z_0 - 3 * current_sigma_z0) < max_z && (current_z_0 + 3 * current_sigma_z0) > min_z) {
             filteredTracks.push_back(sortedTracks[i]);
         }
-        // std::cout << "size of sortedTracks =" << sortedTracks.size() << std::endl;
     }
 
-    // Perform KDE on the filtered tracks
-    for (size_t i = 0; i < filteredTracks.size(); ++i) {
-        double dataPoint1 = filteredTracks[i];
+    // Perform grid search
+    double step = (z_max - z_min) / nbins;
+    double bestKDEValue = -1.0;
+    double bestZ0 = 0.0;
+
+    for (int i = 0; i < nbins; ++i) {
+        double z0_candidate = z_min + i * step;
         double kdeValue = 0.0;
 
-        for (size_t j = 0; j < sortedTracks.size(); ++j) {
-            double dataPoint2 = filteredTracks[j];
-            double diff = (dataPoint1 - dataPoint2) / bandwidth;
+        // Calculate KDE value for this z0_candidate
+        for (size_t j = 0; j < filteredTracks.size(); ++j) {
+            double dataPoint = filteredTracks[j];
+            double diff = (z0_candidate - dataPoint) / bandwidth;
             double kernel = exp(-0.5 * diff * diff) / (sqrt(2 * M_PI) * bandwidth);
             kdeValue += kernel;
         }
-        kdeHistogram->Fill(dataPoint1, kdeValue);
-        // std::cout << "size of filteredTracks =" << filteredTracks.size() << std::endl;
 
+        // Update bestKDEValue and bestZ0 if this kdeValue is greater
+        if (kdeValue > bestKDEValue) {
+            bestKDEValue = kdeValue;
+            bestZ0 = z0_candidate;
+        }
+
+        kdeHistogram->Fill(z0_candidate, kdeValue);
     }
+
+    ACTS_INFO("Best KDE Value = " << bestKDEValue << " at z_0 = " << bestZ0);
 
     kdeHistogram->Write();
 
@@ -140,7 +165,7 @@ KDEAlgorithm::~KDEAlgorithm() {
         inputFile = nullptr;
     }
 
-    std::cout << "Memory Clean-up Performed in Destructor" << std::endl;
+    ACTS_INFO("Memory Clean-up Performed in Destructor");
 }
 
 

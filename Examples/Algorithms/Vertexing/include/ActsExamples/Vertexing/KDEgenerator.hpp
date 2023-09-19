@@ -7,12 +7,14 @@
 #include <vector>
 #include <memory>
 #include <string>
+#include <algorithm>
 
 #include <TTree.h>
 #include <TFile.h>
 #include <TH1F.h>
 
 namespace ActsExamples {
+
 class KDEAlgorithm final : public IAlgorithm {
   public:
     struct Config {
@@ -42,20 +44,24 @@ class KDEAlgorithm final : public IAlgorithm {
    TFile *inputFile;
    TFile *outFile;
    
-   std::vector<float> *eLOC0_fit;
+   std::vector<float> *d_0;
    std::vector<float> *z_0;
-   std::vector<float> *err_eLOC0_fit;
-   std::vector<float> *sigma_z_0;
-   std::vector<float> *err_eLOC0LOC1_fit;
+   std::vector<float> *sigma_d0;
+   std::vector<float> *sigma_z0;
+   std::vector<float> *sigma_d0_z0;
    mutable std::vector<double> sortedTracks; //mutable allows you to modify a member variable within the 'const' execute function.
    mutable std::vector<double> filteredTracks;
 
-   double bandwidth;
    TH1F* kdeHistogram;
 
    mutable Long64_t ientry;
    mutable Long64_t eventNumber;
 
+    //Define grid search parameters
+    double bandwidth;
+    int nbins;
+    double z_min;
+    double z_max;
 };
 
 } // namespace ActsExamples
