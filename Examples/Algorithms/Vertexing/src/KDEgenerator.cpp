@@ -1,5 +1,4 @@
 #include "ActsExamples/Vertexing/KDEgenerator.hpp"
-#include "VertexingHelpers.hpp"
 #include "Acts/Utilities/Logger.hpp"
 
 #include <iostream>
@@ -14,9 +13,9 @@
 #include <TH1F.h>
 
 namespace ActsExamples {
-KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
-    : IAlgorithm("KDEAlgorithm", lvl), m_cfg(cfg){
 
+KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
+    : IAlgorithm("KDEAlgorithm", lvl), m_cfg(cfg) {
     // Open the ROOT file and access the TTree and set the TBranches
 
     const char* rootFilePath = "/eos/user/l/lalsaray/odd_output/tracksummary_ambi.root";
@@ -38,8 +37,8 @@ KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
     //Set Objects Pointer and set branches addresses
     bandwidth = 1.0;
     nbins = 60;
-    z_min = -180.0;
-    z_max = 180.0;
+
+    eventNumber = 0;
 
     d_0 = 0;
     z_0 = 0;
@@ -47,36 +46,28 @@ KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
     sigma_z0 = 0;
     sigma_d0_z0 = 0;
 
+    z_min = std::numeric_limits<double>::max();
+    z_max = std::numeric_limits<double>::min();
+
     inputTree->SetBranchAddress("eLOC0_fit", &d_0);
     inputTree->SetBranchAddress("eLOC1_fit", &z_0);
     inputTree->SetBranchAddress("err_eLOC0_fit", &sigma_d0);
     inputTree->SetBranchAddress("err_eLOC1_fit", &sigma_z0);
     inputTree->SetBranchAddress("err_eLOC0LOC1_fit", &sigma_d0_z0);
 
-    // Create a histogram to store the KDE results
-    kdeHistogram = new TH1F("kdeHistogram", "Kernel Density Estimation", 100, z_min, z_max);
-
     outFile = new TFile("/eos/user/l/lalsaray/KDE_output/KDE_output_file.root", "RECREATE");
           
 }
 
 
-ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const{
+ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
 
     eventNumber++;
-
-    ACTS_INFO("Entering Execute for event " << eventNumber);
 
     // Load only for the current event
     ientry = inputTree->LoadTree(eventNumber);
     if (ientry < 0) return ActsExamples::ProcessCode::ABORT;
     inputTree->GetEntry(ientry);
-
-    // // to find the minimum and maximum values of z_0
-    // double min_z0 = *std::min_element(z_0->begin(), z_0->end());
-    // double max_z_0 = *std::max_element(z_0->begin(), z_0->end());
-    // std::cout << "Minimum value of z_0: " << min_z0 << std::endl;
-    // std::cout << "Maximum value of z_0: " << max_z_0 << std::endl;
 
     // Clear previous event data
     sortedTracks.clear();
@@ -86,33 +77,51 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const{
     for (size_t i = 0; i < z_0->size(); ++i) {
         double value = (*z_0)[i] - 3.0 * (*sigma_z0)[i];
         sortedTracks.push_back(value);
-        // std::cout << "size of value (z0-3dz0) = " << value << std::endl;
     }
 
-    // Sort the tracks in increasing order of "z_0 - 3 * sigma_z0"
+    // Sort the tracks
     std::sort(sortedTracks.begin(), sortedTracks.end());
 
     // Find the minimum and maximum value of z_0
-    double min_z = *std::min_element(z_0->begin(), z_0->end());
-    double max_z = *std::max_element(z_0->begin(), z_0->end());
+    double event_z_min = *std::min_element(z_0->begin(), z_0->end());
+    double event_z_max = *std::max_element(z_0->begin(), z_0->end());
 
-    // Iterate through sortedTracks and add tracks that meet the condition of 3sigmas window
+    // Update the overall z_min and z_max
+    if (event_z_min < z_min) {z_min = event_z_min;}
+    if (event_z_max > z_max) {z_max = event_z_max;}
+
+    // Filter tracks
     for (size_t i = 0; i < sortedTracks.size(); ++i) {
         double current_z_0 = (*z_0)[i];
         double current_sigma_z0 = (*sigma_z0)[i];
         
-        if ((current_z_0 - 3 * current_sigma_z0) < max_z && (current_z_0 + 3 * current_sigma_z0) > min_z) {
+        if ((current_z_0 - 3 * current_sigma_z0) < z_max && (current_z_0 + 3 * current_sigma_z0) > z_min) {
             filteredTracks.push_back(sortedTracks[i]);
         }
     }
 
+    // Lambda functions for binning
+    auto bin_center = [this](int const& i) -> double {
+        return ((i + 0.5) / this->nbins) * (this->z_max - this->z_min) + this->z_min;
+    };
+
+    auto bin_min = [this](int const& i) -> double {
+        return ((i + 0.0) / this->nbins) * (this->z_max - this->z_min) + this->z_min;
+    };
+
+    auto bin_max = [this](int const& i) -> double {
+        return ((i + 1.0) / this->nbins) * (this->z_max - this->z_min) + this->z_min;
+    };
+
+
     // Perform grid search
-    double step = (z_max - z_min) / nbins;
     double bestKDEValue = -1.0;
     double bestZ0 = 0.0;
 
     for (int i = 0; i < nbins; ++i) {
-        double z0_candidate = z_min + i * step;
+        double z0_candidate = bin_center(i);
+        z_min = bin_min(i);
+        z_max = bin_max(i);        
         double kdeValue = 0.0;
 
         // Calculate KDE value for this z0_candidate
@@ -129,21 +138,32 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const{
             bestZ0 = z0_candidate;
         }
 
-        kdeHistogram->Fill(z0_candidate, kdeValue);
+        // Store the KDE data for this event
+        KDEData dataPoint;
+        dataPoint.z0_candidate = z0_candidate;
+        dataPoint.kdeValue = kdeValue;
+        accumulatedData.push_back(dataPoint);
     }
 
     ACTS_INFO("Best KDE Value = " << bestKDEValue << " at z_0 = " << bestZ0);
-
-    kdeHistogram->Write();
 
     return ActsExamples::ProcessCode::SUCCESS;
 
 }
 
+ProcessCode KDEAlgorithm::finalize() {
+    // Create a histogram to store the KDE results
+    kdeHistogram = new TH1F("kdeHistogram", "Kernel Density Estimation", 60, z_min, z_max);
 
-KDEAlgorithm::~KDEAlgorithm() {
-    
-    //we will perfom memory clean-up here in the destructor after all events are run
+    // Fill the histogram using the accumulated data
+    for (const auto& dataPoint : accumulatedData) {
+        kdeHistogram->Fill(dataPoint.z0_candidate, dataPoint.kdeValue);
+    }
+
+    // Write the histogram to file
+    kdeHistogram->Write();
+
+    //clean-up
 
     //histogram
     if (kdeHistogram) {
@@ -165,8 +185,9 @@ KDEAlgorithm::~KDEAlgorithm() {
         inputFile = nullptr;
     }
 
-    ACTS_INFO("Memory Clean-up Performed in Destructor");
+    ACTS_INFO("Memory Clean-up Performed While Finalizing");
+
+    return ActsExamples::ProcessCode::SUCCESS;
 }
 
-
-} //namespace ActsExamples 
+}  // namespace ActsExamples
