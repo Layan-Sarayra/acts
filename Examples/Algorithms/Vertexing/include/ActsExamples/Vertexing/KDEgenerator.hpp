@@ -33,6 +33,8 @@ class KDEAlgorithm final : public IAlgorithm {
 
     // This function will be called on each event by the sequencer
     ProcessCode execute(const AlgorithmContext& ctx) const final;
+
+    // This function will run after all events are processed
     ProcessCode finalize() override;
 
     // Accessor for configuration
@@ -53,9 +55,21 @@ class KDEAlgorithm final : public IAlgorithm {
    
    std::vector<float> *d_0;
    std::vector<float> *z_0;
+   std::vector<float> *phi;
+   std::vector<float> *theta;
+
    std::vector<float> *sigma_d0;
    std::vector<float> *sigma_z0;
+   std::vector<float> *sigma_phi;
+   std::vector<float> *sigma_theta;
+
    std::vector<float> *sigma_d0_z0;
+   std::vector<float> *sigma_d0_phi;
+   std::vector<float> *sigma_d0_theta;
+   std::vector<float> *sigma_z0_phi;
+   std::vector<float> *sigma_z0_theta;
+   std::vector<float> *sigma_theta_phi;
+
 
    mutable std::vector<double> sortedTracks; //mutable allows you to modify a member variable within the 'const' execute function.
    mutable std::vector<double> filteredTracks;

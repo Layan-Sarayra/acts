@@ -16,6 +16,10 @@ namespace ActsExamples {
 
 KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
     : IAlgorithm("KDEAlgorithm", lvl), m_cfg(cfg) {
+
+    ACTS_INFO("********** IN CONSTRUCTOR **********");
+
+
     // Open the ROOT file and access the TTree and set the TBranches
 
     const char* rootFilePath = "/eos/user/l/lalsaray/odd_output/tracksummary_ambi.root";
@@ -37,23 +41,45 @@ KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
     //Set Objects Pointer and set branches addresses
     bandwidth = 1.0;
     nbins = 60;
+    z_min = -160;
+    z_max = 160;
 
-    eventNumber = 0;
+    eventNumber = -1;
 
     d_0 = 0;
     z_0 = 0;
+    phi = 0;
+    theta = 0;
     sigma_d0 = 0;
     sigma_z0 = 0;
+    sigma_phi = 0;
+    sigma_theta = 0;
     sigma_d0_z0 = 0;
+    sigma_d0_phi = 0;
+    sigma_d0_theta = 0;
+    sigma_z0_phi = 0;
+    sigma_z0_theta = 0;
+    sigma_theta_phi = 0;
 
-    z_min = std::numeric_limits<double>::max();
-    z_max = std::numeric_limits<double>::min();
 
     inputTree->SetBranchAddress("eLOC0_fit", &d_0);
     inputTree->SetBranchAddress("eLOC1_fit", &z_0);
+    inputTree->SetBranchAddress("ePHI_fit", &phi);
+    inputTree->SetBranchAddress("eTHETA_fit", &theta);    
+
     inputTree->SetBranchAddress("err_eLOC0_fit", &sigma_d0);
     inputTree->SetBranchAddress("err_eLOC1_fit", &sigma_z0);
+    inputTree->SetBranchAddress("err_ePHI_fit", &sigma_phi);
+    inputTree->SetBranchAddress("err_eTHETA_fit", &sigma_theta);    
+
     inputTree->SetBranchAddress("err_eLOC0LOC1_fit", &sigma_d0_z0);
+    inputTree->SetBranchAddress("err_eLOC0PHI_fit", &sigma_d0_phi);
+    inputTree->SetBranchAddress("err_eLOC0THETA_fit", &sigma_d0_theta);
+    inputTree->SetBranchAddress("err_eLOC1PHI_fit", &sigma_z0_phi);
+    inputTree->SetBranchAddress("err_eLOC1THETA_fit", &sigma_z0_theta);
+    inputTree->SetBranchAddress("err_eTHETAPHI_fit", &sigma_theta_phi);
+
+
 
     outFile = new TFile("/eos/user/l/lalsaray/KDE_output/KDE_output_file.root", "RECREATE");
           
@@ -61,6 +87,8 @@ KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
 
 
 ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
+
+    ACTS_INFO("********** IN EXECUTE **********");
 
     eventNumber++;
 
@@ -82,13 +110,6 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
     // Sort the tracks
     std::sort(sortedTracks.begin(), sortedTracks.end());
 
-    // Find the minimum and maximum value of z_0
-    double event_z_min = *std::min_element(z_0->begin(), z_0->end());
-    double event_z_max = *std::max_element(z_0->begin(), z_0->end());
-
-    // Update the overall z_min and z_max
-    if (event_z_min < z_min) {z_min = event_z_min;}
-    if (event_z_max > z_max) {z_max = event_z_max;}
 
     // Filter tracks
     for (size_t i = 0; i < sortedTracks.size(); ++i) {
@@ -120,9 +141,21 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
 
     for (int i = 0; i < nbins; ++i) {
         double z0_candidate = bin_center(i);
-        z_min = bin_min(i);
-        z_max = bin_max(i);        
+        double local_z_min = bin_min(i);
+        double local_z_max = bin_max(i);        
         double kdeValue = 0.0;
+
+
+        // Filter tracks for this bin
+        filteredTracks.clear();
+        for (size_t j = 0; j < sortedTracks.size(); ++j) {
+            double current_z_0 = (*z_0)[j];
+            double current_sigma_z0 = (*sigma_z0)[j];
+        
+            if ((current_z_0 - 3 * current_sigma_z0) <= local_z_max && (current_z_0 + 3 * current_sigma_z0) >= local_z_min) {
+                filteredTracks.push_back(sortedTracks[j]);
+            }
+        }
 
         // Calculate KDE value for this z0_candidate
         for (size_t j = 0; j < filteredTracks.size(); ++j) {
@@ -152,6 +185,9 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
 }
 
 ProcessCode KDEAlgorithm::finalize() {
+
+    ACTS_INFO("********** IN FINALIZE **********");
+
     // Create a histogram to store the KDE results
     kdeHistogram = new TH1F("kdeHistogram", "Kernel Density Estimation", 60, z_min, z_max);
 
@@ -184,8 +220,6 @@ ProcessCode KDEAlgorithm::finalize() {
         delete inputFile;
         inputFile = nullptr;
     }
-
-    ACTS_INFO("Memory Clean-up Performed While Finalizing");
 
     return ActsExamples::ProcessCode::SUCCESS;
 }
