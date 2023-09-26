@@ -6,6 +6,7 @@
 #include <vector>
 #include <cmath>
 #include <algorithm>
+#include <Eigen/Dense>
 
 #include <TFile.h>
 #include <TTree.h>
@@ -13,6 +14,18 @@
 #include <TH1F.h>
 
 namespace ActsExamples {
+
+
+// x: the point in the 4D space (d_0, z_0, phi, theta) where we want to evaluate the Gaussian PDF. 
+// and the covariance matrix describes how the variables are spread out and correlated. 
+double GetGaussianPDF(const Eigen::VectorXd& x, const Eigen::VectorXd& mean, const Eigen::MatrixXd& covMat) {
+    Eigen::MatrixXd covMat_inverse = covMat.inverse();
+    double covMat_det = covMat.determinant();
+    Eigen::VectorXd diff = x - mean;
+    double chisq = (diff.transpose() * covMat_inverse * diff)(0, 0);
+    return std::exp(-0.5 * chisq) / (2 * M_PI * std::sqrt(covMat_det));
+}
+
 
 KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
     : IAlgorithm("KDEAlgorithm", lvl), m_cfg(cfg) {
@@ -40,9 +53,6 @@ KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
 
     //Set Objects Pointer and set branches addresses
     bandwidth = 1.0;
-    nbins = 60;
-    z_min = -160;
-    z_max = 160;
 
     eventNumber = -1;
 
@@ -123,28 +133,42 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
 
     // Lambda functions for binning
     auto bin_center = [this](int const& i) -> double {
-        return ((i + 0.5) / this->nbins) * (this->z_max - this->z_min) + this->z_min;
-    };
+        return ((i + 0.5) / nbins) * (z_max - z_min) + z_min;};
 
     auto bin_min = [this](int const& i) -> double {
-        return ((i + 0.0) / this->nbins) * (this->z_max - this->z_min) + this->z_min;
-    };
+        return ((i + 0.0) / nbins) * (z_max - z_min) + z_min;};
 
     auto bin_max = [this](int const& i) -> double {
-        return ((i + 1.0) / this->nbins) * (this->z_max - this->z_min) + this->z_min;
-    };
+        return ((i + 1.0) / nbins) * (z_max - z_min) + z_min;};
 
 
     // Perform grid search
     double bestKDEValue = -1.0;
     double bestZ0 = 0.0;
 
+    Eigen::MatrixXd covMat(2, 2);  // 2x2 covariance matrix for d_0 and z_0
+    Eigen::VectorXd x(2);  // 2D vector for d_0 and z_0
+    Eigen::VectorXd mean(2);  // 2D vector for the mean of d_0 and z_0
+
+    mean << 0.0, 0.0;
+
+    // Calculate the mean for d_0 and z_0
+    for (size_t j = 0; j < sortedTracks.size(); ++j) {
+        mean(0) += (*d_0)[j];
+        mean(1) += (*z_0)[j];}
+
+    //make sure we're not dividing by zero
+    if (sortedTracks.size() > 0) {
+        mean /= static_cast<double>(sortedTracks.size());}
+
+
     for (int i = 0; i < nbins; ++i) {
         double z0_candidate = bin_center(i);
         double local_z_min = bin_min(i);
-        double local_z_max = bin_max(i);        
+        double local_z_max = bin_max(i);  
         double kdeValue = 0.0;
 
+        std::cout << "Processing bin " << i << " with z0_candidate: " << z0_candidate << std::endl;
 
         // Filter tracks for this bin
         filteredTracks.clear();
@@ -157,13 +181,22 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
             }
         }
 
+        // std::cout << "Number of filtered tracks: " << filteredTracks.size() << std::endl;
+
         // Calculate KDE value for this z0_candidate
         for (size_t j = 0; j < filteredTracks.size(); ++j) {
-            double dataPoint = filteredTracks[j];
-            double diff = (z0_candidate - dataPoint) / bandwidth;
-            double kernel = exp(-0.5 * diff * diff) / (sqrt(2 * M_PI) * bandwidth);
-            kdeValue += kernel;
+            // Construct 2x2 covariance matrix using d_0 and z_0
+            covMat << (*sigma_d0)[j] * (*sigma_d0)[j], (*sigma_d0_z0)[j],
+                     (*sigma_d0_z0)[j], (*sigma_z0)[j] * (*sigma_z0)[j];
+
+            x << std::abs((*d_0)[j]), (*z_0)[j];
+
+            // Calculate PDF value
+            double pdfValue = GetGaussianPDF(x, mean, covMat);
+            kdeValue += pdfValue;
         }
+
+        // std::cout << "kdeValue for bin " << i << ": " << kdeValue << std::endl;
 
         // Update bestKDEValue and bestZ0 if this kdeValue is greater
         if (kdeValue > bestKDEValue) {

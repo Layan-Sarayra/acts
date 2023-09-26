@@ -75,13 +75,12 @@ class KDEAlgorithm final : public IAlgorithm {
    mutable std::vector<double> filteredTracks;
    mutable std::vector<KDEData> accumulatedData;
 
-   mutable double z_min;
-   mutable double z_max;
-
-
     //Define grid search parameters
    double bandwidth;
-   int nbins;
+
+   int nbins = 60;
+   double z_min = -160.0;
+   double z_max = 160.0;
     
 };
 
