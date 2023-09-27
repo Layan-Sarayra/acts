@@ -52,8 +52,6 @@ KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
 
 
     //Set Objects Pointer and set branches addresses
-    bandwidth = 1.0;
-
     eventNumber = -1;
 
     d_0 = 0;
@@ -181,7 +179,7 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
             }
         }
 
-        // std::cout << "Number of filtered tracks: " << filteredTracks.size() << std::endl;
+        std::cout << "Number of filtered tracks: " << filteredTracks.size() << std::endl;
 
         // Calculate KDE value for this z0_candidate
         for (size_t j = 0; j < filteredTracks.size(); ++j) {
@@ -190,6 +188,9 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
                      (*sigma_d0_z0)[j], (*sigma_z0)[j] * (*sigma_z0)[j];
 
             x << std::abs((*d_0)[j]), (*z_0)[j];
+
+            std::cout << "Covariance Matrix:" << covMat <<std::endl;
+
 
             // Calculate PDF value
             double pdfValue = GetGaussianPDF(x, mean, covMat);

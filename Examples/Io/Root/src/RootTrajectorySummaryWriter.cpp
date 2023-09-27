@@ -364,7 +364,9 @@ ActsExamples::ProcessCode ActsExamples::RootTrajectorySummaryWriter::writeT(
           for (unsigned int i = 0; i < Acts::eBoundSize; ++i) {
             for (unsigned int j = 0; j < Acts::eBoundSize; j++) {
 
-              error[i][j] = std::sqrt(covariance(i,j));
+	      std::cout << "Cov[" << i << "][" << j << "] = " << covariance(i,j) << std::endl;
+              error[i][j] = covariance(i,j);
+	      std::cout << "error[" << i << "][" << j << "] = " << error[i][j] << std::endl; 
 
               if (error[i][j] != 0.0) {
                 pull[i][j] = res[i] / error[i][j];
