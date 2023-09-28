@@ -49,7 +49,9 @@ void addVertexing(Context& ctx) {
       inputTrackParameters, inputTrajectories, inputProtoVertices,
       outputVertices, bField, doConstrainedFit, constraintPos, constraintCov);
   
-  ACTS_PYTHON_DECLARE_ALGORITHM(ActsExamples::KDEAlgorithm, mex, "KDEAlgorithm", message);
+  ACTS_PYTHON_DECLARE_ALGORITHM(
+                                ActsExamples::KDEAlgorithm, 
+                                mex, "KDEAlgorithm", message);
 }
 
 }  // namespace Acts::Python
