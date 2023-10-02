@@ -210,12 +210,21 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
                 this_kernel_sq += pdf_for_this_track * pdf_for_this_track;
             }
 
+            KDEData dataPoint;
+            dataPoint.z0_candidate = z0_candidate;
+            dataPoint.kdeValue = -1;
+
             // Check and update the best kernel values and positions
             if (this_kernel > kernel_value[0]) {
                 kernel_value[0] = this_kernel;
                 kernel_value[1] = this_kernel_sq;
                 best = p;
             }
+
+            dataPoint.kdeValue = kernel_value[0];
+            
+            // add the data to the accumulatedData vector
+            accumulatedData.push_back(dataPoint);
         };
 
         int nbxy = 60;
