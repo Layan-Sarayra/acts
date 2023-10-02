@@ -71,16 +71,12 @@ class KDEAlgorithm final : public IAlgorithm {
    std::vector<float> *sigma_theta_phi;
 
 
-   mutable std::vector<double> sortedTracks; //mutable allows you to modify a member variable within the 'const' execute function.
-   mutable std::vector<double> filteredTracks;
+   mutable std::vector<std::pair<double, int>> sortedTracks; //mutable allows you to modify a member variable within the 'const' execute function.
+   mutable std::vector<std::pair<double, int>> filteredTracks;
    mutable std::vector<KDEData> accumulatedData;
 
-    //Define grid search parameters
-   double bandwidth;
-
-   int nbins = 60;
-   double z_min = -160.0;
-   double z_max = 160.0;
+   double z_min = -240.0;
+   double z_max = 240.0;
     
 };
 

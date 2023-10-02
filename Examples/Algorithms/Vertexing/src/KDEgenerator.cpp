@@ -16,12 +16,12 @@
 namespace ActsExamples {
 
 
-// x: the point in the 4D space (d_0, z_0, phi, theta) where we want to evaluate the Gaussian PDF. 
+// x: the point in the 4D space (d_0, z_0) where we want to evaluate the Gaussian PDF. 
 // and the covariance matrix describes how the variables are spread out and correlated. 
-double GetGaussianPDF(const Eigen::VectorXd& x, const Eigen::VectorXd& mean, const Eigen::MatrixXd& covMat) {
+double GetGaussianPDF(const Eigen::Vector2d& x, const Eigen::Vector2d& mean, const Eigen::MatrixXd& covMat) {
     Eigen::MatrixXd covMat_inverse = covMat.inverse();
     double covMat_det = covMat.determinant();
-    Eigen::VectorXd diff = x - mean;
+    Eigen::Vector2d diff = x - mean;
     double chisq = (diff.transpose() * covMat_inverse * diff)(0, 0);
     return std::exp(-0.5 * chisq) / (2 * M_PI * std::sqrt(covMat_det));
 }
@@ -35,7 +35,7 @@ KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
 
     // Open the ROOT file and access the TTree and set the TBranches
 
-    const char* rootFilePath = "/eos/user/l/lalsaray/odd_output/tracksummary_ambi.root";
+    const char* rootFilePath = "/eos/user/r/rgarg/Rocky/ACTS_Project/PVFinder/Data_Layan/odd_output/tracksummary_ambi.root";
     inputFile = new TFile(rootFilePath);
     if (!inputFile || inputFile->IsZombie()) {
         ACTS_ERROR("Error opening ROOT file");
@@ -105,111 +105,128 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
     if (ientry < 0) return ActsExamples::ProcessCode::ABORT;
     inputTree->GetEntry(ientry);
 
-    // Clear previous event data
+    // Clear data of the previous event
     sortedTracks.clear();
     filteredTracks.clear();
 
     // Process the current event
     for (size_t i = 0; i < z_0->size(); ++i) {
         double value = (*z_0)[i] - 3.0 * (*sigma_z0)[i];
-        sortedTracks.push_back(value);
+        sortedTracks.emplace_back(value, i); //storing the value while keeping track of the index number associated with the sortedTrack
     }
+
+    // Validating sorting tracks function is working properly
+    // First:
+    // Print pre-sorted tracks
+    // std::cout << "pre-sorted tracks = ";
+    // for (const auto& track : sortedTracks) {
+    //     std::cout << "(" << track.first << ", " << track.second << ") ";
+    // }
+    // std::cout << std::endl;
 
     // Sort the tracks
-    std::sort(sortedTracks.begin(), sortedTracks.end());
-
-
-    // Filter tracks
-    for (size_t i = 0; i < sortedTracks.size(); ++i) {
-        double current_z_0 = (*z_0)[i];
-        double current_sigma_z0 = (*sigma_z0)[i];
-        
-        if ((current_z_0 - 3 * current_sigma_z0) < z_max && (current_z_0 + 3 * current_sigma_z0) > z_min) {
-            filteredTracks.push_back(sortedTracks[i]);
+    std::sort(sortedTracks.begin(), sortedTracks.end(),
+        [](const std::pair<double, int>& a, const std::pair<double, int>& b) {
+            return a.first < b.first;
         }
-    }
+    );
 
-    // Lambda functions for binning
-    auto bin_center = [this](int const& i) -> double {
-        return ((i + 0.5) / nbins) * (z_max - z_min) + z_min;};
-
-    auto bin_min = [this](int const& i) -> double {
-        return ((i + 0.0) / nbins) * (z_max - z_min) + z_min;};
-
-    auto bin_max = [this](int const& i) -> double {
-        return ((i + 1.0) / nbins) * (z_max - z_min) + z_min;};
+    // Second:
+    // Print sorted tracks
+    // std::cout << "sorted tracks = ";
+    // for (const auto& track : sortedTracks) {
+    //     std::cout << "(" << track.first << ", " << track.second << ") ";
+    // }
+    // std::cout << std::endl;
 
 
-    // Perform grid search
+    // Define Lambda functions for binning, will be called later
+    auto bin_center = [] (int const& nbins, float const& min, float const& max, int const& i) -> float {
+        return ((i + 0.5f) / nbins) * (max - min) + min;
+    };
+    auto bin_min = [] (int const& nbins, float const& min, float const& max, int const& i) -> float {
+        return ((i + 0.0f) / nbins) * (max - min) + min;
+    };
+    auto bin_max = [] (int const& nbins, float const& min, float const& max, int const& i) -> float {
+        return ((i + 1.0f) / nbins) * (max - min) + min;
+    };
+
+
+
+    // Initiate variables used to perform grid search later
     double bestKDEValue = -1.0;
     double bestZ0 = 0.0;
 
-    Eigen::MatrixXd covMat(2, 2);  // 2x2 covariance matrix for d_0 and z_0
-    Eigen::VectorXd x(2);  // 2D vector for d_0 and z_0
-    Eigen::VectorXd mean(2);  // 2D vector for the mean of d_0 and z_0
+    int bins = 1200;
 
-    mean << 0.0, 0.0;
+    for (int i = 0; i < bins; ++i) {
 
-    // Calculate the mean for d_0 and z_0
-    for (size_t j = 0; j < sortedTracks.size(); ++j) {
-        mean(0) += (*d_0)[j];
-        mean(1) += (*z_0)[j];}
+        double z0_candidate = bin_center(bins, z_min, z_max, i);
+        double local_z_min = bin_min(bins, z_min, z_max, i);
+        double local_z_max = bin_max(bins, z_min, z_max, i);  
+   
+        std::vector<double> kernel_value = {-1.0, -1.0};
+        Eigen::Vector3d best;         
 
-    //make sure we're not dividing by zero
-    if (sortedTracks.size() > 0) {
-        mean /= static_cast<double>(sortedTracks.size());}
-
-
-    for (int i = 0; i < nbins; ++i) {
-        double z0_candidate = bin_center(i);
-        double local_z_min = bin_min(i);
-        double local_z_max = bin_max(i);  
-        double kdeValue = 0.0;
-
-        std::cout << "Processing bin " << i << " with z0_candidate: " << z0_candidate << std::endl;
+        // std::cout << "Processing bin " << i << " with z0_candidate: " << z0_candidate << std::endl;
 
         // Filter tracks for this bin
-        filteredTracks.clear();
         for (size_t j = 0; j < sortedTracks.size(); ++j) {
-            double current_z_0 = (*z_0)[j];
-            double current_sigma_z0 = (*sigma_z0)[j];
+            int index = sortedTracks[j].second;
+            double current_z_0 = (*z_0)[index];
+            double current_sigma_z0 = (*sigma_z0)[index];
         
             if ((current_z_0 - 3 * current_sigma_z0) <= local_z_max && (current_z_0 + 3 * current_sigma_z0) >= local_z_min) {
                 filteredTracks.push_back(sortedTracks[j]);
             }
+            // add a break statement to make code more efficient
+            if ((current_z_0 - 3 * current_sigma_z0) > local_z_max) {
+                break;  // Add break statement
+            }        
+        }    
+
+        // std::cout << "Number of filtered tracks: " << filteredTracks.size() << std::endl;
+
+        // here we define a lambda variable to evaluate the pdf, set kernel_value maximum and it's position (just defined here, used afterwards) 
+        auto eval_pdf_max_and_position = [&kernel_value, &best, this, &bin_center, &z0_candidate](Eigen::Vector3d& p) {
+
+            double this_kernel = 0.0, this_kernel_sq = 0.0;
+
+            Eigen::VectorXd x(2);  // 2D vector for d_0 and z_0
+            // Eigen::VectorXd mean(2);  // 2D vector for the mean of d_0 and z_0
+
+            // Iterate over the filtered tracks
+            for (const auto& track : filteredTracks) {
+                int index = track.second;
+                // Construct 2x2 covariance matrix using d_0 and z_0
+                Eigen::MatrixXd covMat(2, 2);
+                covMat << (*sigma_d0)[index] * (*sigma_d0)[index], (*sigma_d0_z0)[index],
+                          (*sigma_d0_z0)[index], (*sigma_z0)[index] * (*sigma_z0)[index];
+
+                // Calculate the PDF for this track and point p, and accumulate the kernel value
+
+                double pdf_for_this_track = GetGaussianPDF(Eigen::Vector2d(p.x(), p.z()), Eigen::Vector2d((*d_0)[index], (*z_0)[index]), covMat);
+                this_kernel += pdf_for_this_track;
+                this_kernel_sq += pdf_for_this_track * pdf_for_this_track;
+            }
+
+            // Check and update the best kernel values and positions
+            if (this_kernel > kernel_value[0]) {
+                kernel_value[0] = this_kernel;
+                kernel_value[1] = this_kernel_sq;
+                best = p;
+            }
+        };
+
+        int nbxy = 60;
+        float xymin = -0.6f, xymax = 0.6f;
+
+        for (int bx = 0; bx < nbxy; bx++) {
+            for (int by = 0; by < nbxy; by++) {
+                Eigen::Vector3d p(bin_center(nbxy, xymin, xymax, bx), bin_center(nbxy, xymin, xymax, by), z0_candidate);
+                eval_pdf_max_and_position(p);
+            }
         }
-
-        std::cout << "Number of filtered tracks: " << filteredTracks.size() << std::endl;
-
-        // Calculate KDE value for this z0_candidate
-        for (size_t j = 0; j < filteredTracks.size(); ++j) {
-            // Construct 2x2 covariance matrix using d_0 and z_0
-            covMat << (*sigma_d0)[j] * (*sigma_d0)[j], (*sigma_d0_z0)[j],
-                     (*sigma_d0_z0)[j], (*sigma_z0)[j] * (*sigma_z0)[j];
-
-            x << std::abs((*d_0)[j]), (*z_0)[j];
-
-            std::cout << "Covariance Matrix:" << covMat <<std::endl;
-
-
-            // Calculate PDF value
-            double pdfValue = GetGaussianPDF(x, mean, covMat);
-            kdeValue += pdfValue;
-        }
-
-        // std::cout << "kdeValue for bin " << i << ": " << kdeValue << std::endl;
-
-        // Update bestKDEValue and bestZ0 if this kdeValue is greater
-        if (kdeValue > bestKDEValue) {
-            bestKDEValue = kdeValue;
-            bestZ0 = z0_candidate;
-        }
-
-        // Store the KDE data for this event
-        KDEData dataPoint;
-        dataPoint.z0_candidate = z0_candidate;
-        dataPoint.kdeValue = kdeValue;
-        accumulatedData.push_back(dataPoint);
     }
 
     ACTS_INFO("Best KDE Value = " << bestKDEValue << " at z_0 = " << bestZ0);
