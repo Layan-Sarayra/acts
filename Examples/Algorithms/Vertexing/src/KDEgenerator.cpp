@@ -16,11 +16,23 @@
 namespace ActsExamples {
 
 
-// x: the point in the 4D space (d_0, z_0) where we want to evaluate the Gaussian PDF. 
+// x: the point in the 2D space (d_0, z_0) where we want to evaluate the Gaussian PDF. 
 // and the covariance matrix describes how the variables are spread out and correlated. 
 double GetGaussianPDF(const Eigen::Vector2d& x, const Eigen::Vector2d& mean, const Eigen::MatrixXd& covMat) {
     Eigen::MatrixXd covMat_inverse = covMat.inverse();
     double covMat_det = covMat.determinant();
+
+
+    //debugging lines... validate the covariance matrix elements
+    if (covMat_det < 0) {
+        std::cerr << "Determinant of covariance matrix is negative" << std::endl;
+        return 0;
+    }
+    if (covMat.determinant() == 0) {
+        std::cerr << "Covariance matrix is singular" << std::endl;
+        return 0;
+    }
+
     Eigen::Vector2d diff = x - mean;
     double chisq = (diff.transpose() * covMat_inverse * diff)(0, 0);
     return std::exp(-0.5 * chisq) / (2 * M_PI * std::sqrt(covMat_det));
@@ -107,8 +119,6 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
 
     // Clear data of the previous event
     sortedTracks.clear();
-    filteredTracks.clear();
-
     // Process the current event
     for (size_t i = 0; i < z_0->size(); ++i) {
         double value = (*z_0)[i] - 3.0 * (*sigma_z0)[i];
@@ -132,7 +142,7 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
     );
 
     // Second:
-    // Print sorted tracks
+    // // Print sorted tracks
     // std::cout << "sorted tracks = ";
     // for (const auto& track : sortedTracks) {
     //     std::cout << "(" << track.first << ", " << track.second << ") ";
@@ -152,11 +162,6 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
     };
 
 
-
-    // Initiate variables used to perform grid search later
-    double bestKDEValue = -1.0;
-    double bestZ0 = 0.0;
-
     int bins = 1200;
 
     for (int i = 0; i < bins; ++i) {
@@ -168,51 +173,60 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
         std::vector<double> kernel_value = {-1.0, -1.0};
         Eigen::Vector3d best;         
 
-        // std::cout << "Processing bin " << i << " with z0_candidate: " << z0_candidate << std::endl;
+        // std::cout << "Processing bin " << i << " with z0_candidate: " << z0_candidate << std::endl; 
 
+        filteredTracks.clear();
         // Filter tracks for this bin
         for (size_t j = 0; j < sortedTracks.size(); ++j) {
             int index = sortedTracks[j].second;
             double current_z_0 = (*z_0)[index];
             double current_sigma_z0 = (*sigma_z0)[index];
-        
+
             if ((current_z_0 - 3 * current_sigma_z0) <= local_z_max && (current_z_0 + 3 * current_sigma_z0) >= local_z_min) {
                 filteredTracks.push_back(sortedTracks[j]);
+
+                // std::cout << "filteredTracks value is = (" << filteredTracks.back().first << ", " << filteredTracks.back().second << ")" << std::endl;
+                // // std::cout << "Number of filtered tracks: " << filteredTracks.size() << std::endl;
+                // std::cout << "Current z_0: " << current_z_0 << ", Current sigma_z0: " << current_sigma_z0 << std::endl;
+                // std::cout << "Local z_min: " << local_z_min << ", Local z_max: " << local_z_max << std::endl; 
             }
             // add a break statement to make code more efficient
             if ((current_z_0 - 3 * current_sigma_z0) > local_z_max) {
                 break;  // Add break statement
-            }        
-        }    
+            }
+        } 
 
-        // std::cout << "Number of filtered tracks: " << filteredTracks.size() << std::endl;
+
+        KDEData dataPoint;
+        dataPoint.z0_candidate = z0_candidate;
+        dataPoint.kdeValue = -1;
 
         // here we define a lambda variable to evaluate the pdf, set kernel_value maximum and it's position (just defined here, used afterwards) 
-        auto eval_pdf_max_and_position = [&kernel_value, &best, this, &bin_center, &z0_candidate](Eigen::Vector3d& p) {
+        auto eval_pdf_max_and_position = [&kernel_value, &best, &dataPoint, this, &bin_center, &z0_candidate](Eigen::Vector3d& p) {
+            // p is the xyz point in space
 
             double this_kernel = 0.0, this_kernel_sq = 0.0;
-
             Eigen::VectorXd x(2);  // 2D vector for d_0 and z_0
-            // Eigen::VectorXd mean(2);  // 2D vector for the mean of d_0 and z_0
 
             // Iterate over the filtered tracks
-            for (const auto& track : filteredTracks) {
-                int index = track.second;
+            for (size_t k = 0; k < filteredTracks.size(); ++k) {
+                int index = filteredTracks[k].second;
                 // Construct 2x2 covariance matrix using d_0 and z_0
                 Eigen::MatrixXd covMat(2, 2);
-                covMat << (*sigma_d0)[index] * (*sigma_d0)[index], (*sigma_d0_z0)[index],
-                          (*sigma_d0_z0)[index], (*sigma_z0)[index] * (*sigma_z0)[index];
+                covMat << (*sigma_d0)[index] , (*sigma_d0_z0)[index],
+                          (*sigma_d0_z0)[index], (*sigma_z0)[index];
+
+
+                // std::cout << "Determinant of covMat: " << covMat.determinant() << std::endl;
+
 
                 // Calculate the PDF for this track and point p, and accumulate the kernel value
-
-                double pdf_for_this_track = GetGaussianPDF(Eigen::Vector2d(p.x(), p.z()), Eigen::Vector2d((*d_0)[index], (*z_0)[index]), covMat);
+                double pdf_for_this_track = GetGaussianPDF(Eigen::Vector2d(std::sqrt(p.x() * p.x() + p.y() * p.y()), p.z()), Eigen::Vector2d((*d_0)[index], (*z_0)[index]), covMat);
                 this_kernel += pdf_for_this_track;
                 this_kernel_sq += pdf_for_this_track * pdf_for_this_track;
+
             }
 
-            KDEData dataPoint;
-            dataPoint.z0_candidate = z0_candidate;
-            dataPoint.kdeValue = -1;
 
             // Check and update the best kernel values and positions
             if (this_kernel > kernel_value[0]) {
@@ -221,10 +235,9 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
                 best = p;
             }
 
+
             dataPoint.kdeValue = kernel_value[0];
-            
-            // add the data to the accumulatedData vector
-            accumulatedData.push_back(dataPoint);
+
         };
 
         int nbxy = 60;
@@ -236,9 +249,17 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
                 eval_pdf_max_and_position(p);
             }
         }
+
+
+        // add the data to the accumulatedData vector
+        accumulatedData.push_back(dataPoint);
+
+
+        ACTS_INFO("KDE Value = " << kernel_value[0] << " z0 = " << z0_candidate);
     }
 
-    ACTS_INFO("Best KDE Value = " << bestKDEValue << " at z_0 = " << bestZ0);
+
+
 
     return ActsExamples::ProcessCode::SUCCESS;
 
@@ -249,12 +270,13 @@ ProcessCode KDEAlgorithm::finalize() {
     ACTS_INFO("********** IN FINALIZE **********");
 
     // Create a histogram to store the KDE results
-    kdeHistogram = new TH1F("kdeHistogram", "Kernel Density Estimation", 60, z_min, z_max);
+    kdeHistogram = new TH1F("kdeHistogram", "Kernel Density Estimation", 12000, -160, 160);
 
     // Fill the histogram using the accumulated data
-    for (const auto& dataPoint : accumulatedData) {
-        kdeHistogram->Fill(dataPoint.z0_candidate, dataPoint.kdeValue);
+    for (size_t i = 0; i < accumulatedData.size(); ++i) {
+        kdeHistogram->Fill(accumulatedData[i].z0_candidate, accumulatedData[i].kdeValue);
     }
+
 
     // Write the histogram to file
     kdeHistogram->Write();
@@ -285,3 +307,26 @@ ProcessCode KDEAlgorithm::finalize() {
 }
 
 }  // namespace ActsExamples
+
+
+            // print statements used
+
+            // std::cout << " this_kernel: " << this_kernel << std::endl;
+
+
+            // std::cout << "Final kernel_value: " << kernel_value[0] << " dataPoint.kdeValue: " << dataPoint.kdeValue << std::endl;
+
+            // std::cout << "dataPoint.z0_candidate: " << dataPoint.z0_candidate << " dataPoint.kdeValue: " << dataPoint.kdeValue << std::endl;            
+
+            // std::cout << "value of the position point (p) = " << p << std::endl;
+            
+            // std::cout << "Parameters of GetGaussianPDF: "<< "x = " << Eigen::Vector2d(p.x(), p.z()) << "\nmean = " << Eigen::Vector2d((*d_0)[index], (*z_0)[index]) << "\nCovariance Matrix = \n" << covMat << std::endl;
+            
+            // std::cout << " this_kernel: " << this_kernel << std::endl;
+
+
+            // std::cout << "GetGaussianPDF return: " << pdf_for_this_track << std::endl;
+            // std::cout << "the covariance matrix = " << covMat << std::endl;          
+
+
+            // std::cout << "p.x() = " << p.x() << ", p.z() = " << p.z() << std::endl;
