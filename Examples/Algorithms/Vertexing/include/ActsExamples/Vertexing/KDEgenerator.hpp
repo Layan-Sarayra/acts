@@ -37,44 +37,73 @@ class KDEAlgorithm final : public IAlgorithm {
     // This function will run after all events are processed
     ProcessCode finalize() override;
 
+    void copyBranches();
+
     // Accessor for configuration
     const Config& config() const { return m_cfg; }
 
   
   private:
    Config m_cfg; // Configuration data for the algorithm
+
    mutable Long64_t ientry;
+   mutable Long64_t performance_entry;
    mutable Long64_t eventNumber;
 
    //Define all member vars here
 
+   // first input ROOT file, aka tracksummary_ambi.root
    TFile* inputFile = nullptr;
    TTree* inputTree = nullptr;
-   TFile* outFile = nullptr;
-   TH1F* kdeHistogram = nullptr; 
-   
+
    std::vector<float> *d_0;
    std::vector<float> *z_0;
-   std::vector<float> *phi;
-   std::vector<float> *theta;
-
    std::vector<float> *sigma_d0;
    std::vector<float> *sigma_z0;
-   std::vector<float> *sigma_phi;
-   std::vector<float> *sigma_theta;
-
    std::vector<float> *sigma_d0_z0;
-   std::vector<float> *sigma_d0_phi;
-   std::vector<float> *sigma_d0_theta;
-   std::vector<float> *sigma_z0_phi;
-   std::vector<float> *sigma_z0_theta;
-   std::vector<float> *sigma_theta_phi;
+
+
+   // second input ROOT file, aka performance_vertexing.root
+   TFile* performanceFile = nullptr;
+   TTree* performanceTree = nullptr;
+
+   std::vector<float> *truthX;
+   std::vector<float> *truthY;
+   std::vector<float> *truthZ;
+   std::vector<float> *recoX;
+   std::vector<float> *recoY;
+   std::vector<float> *recoZ;
+
+
+   // defining output ROOT file, aka KDE_output_file.root
+   TFile* outFile = nullptr;
+   TTree* outputTree = nullptr;
+   TH1F* kdeHistogram = nullptr; 
+   
+   //from the 1st input root file
+   mutable std::vector<float> *m_recoTrack_z0;
+   mutable std::vector<float> *m_recoTrack_d0;
+   mutable std::vector<float> *m_recoTrack_ErrD0;
+   mutable std::vector<float> *m_recoTrack_ErrZ0;
+   mutable std::vector<float> *m_recoTrack_ErrD0Z0;
+
+   //from the 2nd input root file
+   mutable std::vector<float> *m_truthVtx_x;
+   mutable std::vector<float> *m_truthVtx_y;
+   mutable std::vector<float> *m_truthVtx_z;
+   mutable std::vector<float> *m_recoVtx_x;
+   mutable std::vector<float> *m_recoVtx_y;
+   mutable std::vector<float> *m_recoVtx_z;   
+
+   //for the histogram
+   std::vector<float> *m_kernelA_zdata;      
 
 
    mutable std::vector<std::pair<double, int>> sortedTracks; //mutable allows you to modify a member variable within the 'const' execute function.
    mutable std::vector<std::pair<double, int>> filteredTracks;
    mutable std::vector<KDEData> accumulatedData;
 
+   int bins = 12000;
    double z_min = -240.0;
    double z_max = 240.0;
     

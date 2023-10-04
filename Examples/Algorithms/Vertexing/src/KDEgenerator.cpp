@@ -22,13 +22,12 @@ double GetGaussianPDF(const Eigen::Vector2d& x, const Eigen::Vector2d& mean, con
     Eigen::MatrixXd covMat_inverse = covMat.inverse();
     double covMat_det = covMat.determinant();
 
-
     //debugging lines... validate the covariance matrix elements
     if (covMat_det < 0) {
         std::cerr << "Determinant of covariance matrix is negative" << std::endl;
         return 0;
     }
-    if (covMat.determinant() == 0) {
+    if (covMat_det == 0) {
         std::cerr << "Covariance matrix is singular" << std::endl;
         return 0;
     }
@@ -44,9 +43,7 @@ KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
 
     ACTS_INFO("********** IN CONSTRUCTOR **********");
 
-
-    // Open the ROOT file and access the TTree and set the TBranches
-
+    // Open the first ROOT file and access the TTree and set the TBranches
     const char* rootFilePath = "/eos/user/r/rgarg/Rocky/ACTS_Project/PVFinder/Data_Layan/odd_output/tracksummary_ambi.root";
     inputFile = new TFile(rootFilePath);
     if (!inputFile || inputFile->IsZombie()) {
@@ -62,47 +59,67 @@ KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
     // call on the inputTree and enable automatic creation of classes to store structured data 
     inputTree->SetMakeClass(1);
 
-
     //Set Objects Pointer and set branches addresses
-    eventNumber = -1;
-
     d_0 = 0;
     z_0 = 0;
-    phi = 0;
-    theta = 0;
     sigma_d0 = 0;
     sigma_z0 = 0;
-    sigma_phi = 0;
-    sigma_theta = 0;
     sigma_d0_z0 = 0;
-    sigma_d0_phi = 0;
-    sigma_d0_theta = 0;
-    sigma_z0_phi = 0;
-    sigma_z0_theta = 0;
-    sigma_theta_phi = 0;
-
 
     inputTree->SetBranchAddress("eLOC0_fit", &d_0);
-    inputTree->SetBranchAddress("eLOC1_fit", &z_0);
-    inputTree->SetBranchAddress("ePHI_fit", &phi);
-    inputTree->SetBranchAddress("eTHETA_fit", &theta);    
-
+    inputTree->SetBranchAddress("eLOC1_fit", &z_0);   
     inputTree->SetBranchAddress("err_eLOC0_fit", &sigma_d0);
-    inputTree->SetBranchAddress("err_eLOC1_fit", &sigma_z0);
-    inputTree->SetBranchAddress("err_ePHI_fit", &sigma_phi);
-    inputTree->SetBranchAddress("err_eTHETA_fit", &sigma_theta);    
-
+    inputTree->SetBranchAddress("err_eLOC1_fit", &sigma_z0);   
     inputTree->SetBranchAddress("err_eLOC0LOC1_fit", &sigma_d0_z0);
-    inputTree->SetBranchAddress("err_eLOC0PHI_fit", &sigma_d0_phi);
-    inputTree->SetBranchAddress("err_eLOC0THETA_fit", &sigma_d0_theta);
-    inputTree->SetBranchAddress("err_eLOC1PHI_fit", &sigma_z0_phi);
-    inputTree->SetBranchAddress("err_eLOC1THETA_fit", &sigma_z0_theta);
-    inputTree->SetBranchAddress("err_eTHETAPHI_fit", &sigma_theta_phi);
 
 
+    // Open the second ROOT file and access the TTree and set the TBranches
+    const char* performanceFilePath = "/eos/user/r/rgarg/Rocky/ACTS_Project/PVFinder/Data_Layan/odd_output/performance_vertexing.root";
+    performanceFile = new TFile(performanceFilePath);
+    if (!performanceFile || performanceFile->IsZombie()) {
+        ACTS_ERROR("Error opening ROOT file");
+    }
+    
+    performanceTree = dynamic_cast<TTree*>(performanceFile->Get("vertexing"));
+    if (!performanceTree) {
+        ACTS_ERROR("Error getting TTree from ROOT file");
+        inputFile->Close();
+    }
 
+    performanceTree->SetBranchAddress("truthX", &truthX);
+    performanceTree->SetBranchAddress("truthY", &truthY);   
+    performanceTree->SetBranchAddress("truthZ", &truthZ);
+    performanceTree->SetBranchAddress("recoX", &recoX);   
+    performanceTree->SetBranchAddress("recoY", &recoY);
+    performanceTree->SetBranchAddress("recoZ", &recoZ);
+
+
+    // Defining output file and output tree & branches
     outFile = new TFile("/eos/user/l/lalsaray/KDE_output/KDE_output_file.root", "RECREATE");
-          
+    outFile->cd();
+    outputTree = new TTree("PVFinderData", "PVFinderData");
+
+    // write data from the first ROOT file; tracksummary_ambi.root into the output file KDE_output_file.root
+    outputTree->Branch("RecoTrack_z0", &m_recoTrack_z0);
+    outputTree->Branch("RecoTrack_d0", &m_recoTrack_d0);
+    outputTree->Branch("RecoTrack_ErrD0", &m_recoTrack_ErrD0);
+    outputTree->Branch("RecoTrack_ErrZ0", &m_recoTrack_ErrZ0);
+    outputTree->Branch("RecoTrack_ErrD0Z0", &m_recoTrack_ErrD0Z0);
+
+    // write data from the second ROOT file into the output file; performance_vertexing.root
+    outputTree->Branch("TruthVertex_x", &m_truthVtx_x);    
+    outputTree->Branch("TruthVertex_y", &m_truthVtx_y);
+    outputTree->Branch("TruthVertex_z", &m_truthVtx_z);
+    outputTree->Branch("RecoVertex_x", &m_recoVtx_x);
+    outputTree->Branch("RecoVertex_y", &m_recoVtx_y);
+    outputTree->Branch("RecoVertex_z", &m_recoVtx_z);
+
+    //write the histogram into the output file
+    outputTree->Branch("KernelA_zdata", &m_kernelA_zdata);
+
+    eventNumber = -1;
+
+
 }
 
 
@@ -162,8 +179,6 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
     };
 
 
-    int bins = 1200;
-
     for (int i = 0; i < bins; ++i) {
 
         double z0_candidate = bin_center(bins, z_min, z_max, i);
@@ -216,7 +231,7 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
                 covMat << (*sigma_d0)[index] , (*sigma_d0_z0)[index],
                           (*sigma_d0_z0)[index], (*sigma_z0)[index];
 
-
+                // std::cout << "the covariance matrix = " << covMat << std::endl;                 
                 // std::cout << "Determinant of covMat: " << covMat.determinant() << std::endl;
 
 
@@ -224,6 +239,8 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
                 double pdf_for_this_track = GetGaussianPDF(Eigen::Vector2d(std::sqrt(p.x() * p.x() + p.y() * p.y()), p.z()), Eigen::Vector2d((*d_0)[index], (*z_0)[index]), covMat);
                 this_kernel += pdf_for_this_track;
                 this_kernel_sq += pdf_for_this_track * pdf_for_this_track;
+
+                // std::cout << "GetGaussianPDF return: " << pdf_for_this_track << std::endl;
 
             }
 
@@ -256,27 +273,54 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
 
 
         ACTS_INFO("KDE Value = " << kernel_value[0] << " z0 = " << z0_candidate);
+
     }
 
-
-
-
     return ActsExamples::ProcessCode::SUCCESS;
+}
+
+
+void KDEAlgorithm::copyBranches() {
+    ACTS_INFO("********** COPYING BRANCHES **********");
+
+    // Loop over the entries and fill the output tree
+    Long64_t nentries = inputTree->GetEntries();
+    for (Long64_t i = 0; i < nentries; i++) {
+        inputTree->GetEntry(i);
+        performanceTree->GetEntry(i);
+        outputTree->Fill();
+    }
+
+    // Write the output tree and close the files
+    outFile->cd();
+    outputTree->Write();
 
 }
+
 
 ProcessCode KDEAlgorithm::finalize() {
 
     ACTS_INFO("********** IN FINALIZE **********");
 
+    outFile->cd();  // Make sure we're in the correct directory in the output file
+
+    outputTree->Write();
+
     // Create a histogram to store the KDE results
-    kdeHistogram = new TH1F("kdeHistogram", "Kernel Density Estimation", 12000, -160, 160);
+    kdeHistogram = new TH1F("kdeHistogram", "Kernel Density Estimation", bins, z_min, z_max);
 
     // Fill the histogram using the accumulated data
     for (size_t i = 0; i < accumulatedData.size(); ++i) {
         kdeHistogram->Fill(accumulatedData[i].z0_candidate, accumulatedData[i].kdeValue);
     }
 
+    // // Extract data from the histogram and store it in m_kernelA_zdata
+    // m_kernelA_zdata->clear();  // Clear any previous data
+    // for (int i = 1; i <= kdeHistogram->GetNbinsX(); ++i) {
+    //     m_kernelA_zdata->push_back(kdeHistogram->GetBinContent(i));
+    // }
+    // //Fill Again After extracting data from the histogram and before writing the histogram
+    // outputTree->Fill();
 
     // Write the histogram to file
     kdeHistogram->Write();
@@ -296,37 +340,22 @@ ProcessCode KDEAlgorithm::finalize() {
         outFile = nullptr;
     }
 
-    //input file
+    //input file; tracksummary_ambi.root
     if (inputFile) {
         inputFile->Close();
         delete inputFile;
         inputFile = nullptr;
     }
 
+
+    //second input file; performance_vertexing.root
+    if (performanceFile) {
+        performanceFile->Close();
+        delete performanceFile;
+        performanceFile = nullptr;
+    }
+
     return ActsExamples::ProcessCode::SUCCESS;
 }
 
 }  // namespace ActsExamples
-
-
-            // print statements used
-
-            // std::cout << " this_kernel: " << this_kernel << std::endl;
-
-
-            // std::cout << "Final kernel_value: " << kernel_value[0] << " dataPoint.kdeValue: " << dataPoint.kdeValue << std::endl;
-
-            // std::cout << "dataPoint.z0_candidate: " << dataPoint.z0_candidate << " dataPoint.kdeValue: " << dataPoint.kdeValue << std::endl;            
-
-            // std::cout << "value of the position point (p) = " << p << std::endl;
-            
-            // std::cout << "Parameters of GetGaussianPDF: "<< "x = " << Eigen::Vector2d(p.x(), p.z()) << "\nmean = " << Eigen::Vector2d((*d_0)[index], (*z_0)[index]) << "\nCovariance Matrix = \n" << covMat << std::endl;
-            
-            // std::cout << " this_kernel: " << this_kernel << std::endl;
-
-
-            // std::cout << "GetGaussianPDF return: " << pdf_for_this_track << std::endl;
-            // std::cout << "the covariance matrix = " << covMat << std::endl;          
-
-
-            // std::cout << "p.x() = " << p.x() << ", p.z() = " << p.z() << std::endl;
