@@ -276,25 +276,66 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
 
     }
 
-    return ActsExamples::ProcessCode::SUCCESS;
-}
+    m_recoTrack_z0->clear();
+    m_recoTrack_d0->clear();
+    m_recoTrack_ErrD0->clear();
+    m_recoTrack_ErrZ0->clear();
+    m_recoTrack_ErrD0Z0->clear();
+    m_truthVtx_x->clear();
+    m_truthVtx_y->clear();
+    m_truthVtx_z->clear();
+    m_recoVtx_x->clear();
+    m_recoVtx_y->clear();
+    m_recoVtx_z->clear();
+    m_kernelA_zdata->clear();
 
-
-void KDEAlgorithm::copyBranches() {
-    ACTS_INFO("********** COPYING BRANCHES **********");
-
-    // Loop over the entries and fill the output tree
-    Long64_t nentries = inputTree->GetEntries();
-    for (Long64_t i = 0; i < nentries; i++) {
-        inputTree->GetEntry(i);
-        performanceTree->GetEntry(i);
-        outputTree->Fill();
+    // filling from the first input file
+    for (size_t i = 0; i < z_0->size(); ++i) {
+       m_recoTrack_z0->push_back((*z_0)[i]);
+    }
+    for (size_t i = 0; i < d_0->size(); ++i) {
+       m_recoTrack_d0->push_back((*d_0)[i]);
+    }
+    for (size_t i = 0; i < sigma_z0->size(); ++i) {
+       m_recoTrack_ErrZ0->push_back((*sigma_z0)[i]);
+    }        
+    for (size_t i = 0; i < sigma_d0->size(); ++i) {
+       m_recoTrack_ErrD0->push_back((*sigma_d0)[i]);
+    }
+    for (size_t i = 0; i < sigma_d0_z0->size(); ++i) {
+       m_recoTrack_ErrD0Z0->push_back((*sigma_d0_z0)[i]);
     }
 
-    // Write the output tree and close the files
-    outFile->cd();
-    outputTree->Write();
+    // filling from the second input file
+    for(size_t i = 0; i < recoX->size(); i++){
+     m_recoVtx_x->push_back((*recoX)[i]); 
+    }
+    for(size_t i = 0; i < recoY->size(); i++){
+     m_recoVtx_y->push_back((*recoY)[i]);
+    }
+    for(size_t i = 0; i < recoZ->size(); i++){
+     m_recoVtx_z->push_back((*recoZ)[i]);
+    }
+    for(size_t i = 0; i < truthX->size(); i++){
+     m_truthVtx_x->push_back((*truthX)[i]); 
+    }
+    for(size_t i = 0; i < truthY->size(); i++){
+     m_truthVtx_y->push_back((*truthY)[i]); 
+    }
+    for(size_t i = 0; i < truthZ->size(); i++){
+     m_truthVtx_z->push_back((*truthZ)[i]); 
+    }
 
+    // filling the histogram branch
+    for(const auto& data : accumulatedData){
+        m_kernelA_zdata->push_back(data.kdeValue);
+    }
+
+
+    outputTree->Fill();
+
+
+    return ActsExamples::ProcessCode::SUCCESS;
 }
 
 
@@ -304,7 +345,7 @@ ProcessCode KDEAlgorithm::finalize() {
 
     outFile->cd();  // Make sure we're in the correct directory in the output file
 
-    outputTree->Write();
+    // outputTree->Write();
 
     // Create a histogram to store the KDE results
     kdeHistogram = new TH1F("kdeHistogram", "Kernel Density Estimation", bins, z_min, z_max);
@@ -313,14 +354,6 @@ ProcessCode KDEAlgorithm::finalize() {
     for (size_t i = 0; i < accumulatedData.size(); ++i) {
         kdeHistogram->Fill(accumulatedData[i].z0_candidate, accumulatedData[i].kdeValue);
     }
-
-    // // Extract data from the histogram and store it in m_kernelA_zdata
-    // m_kernelA_zdata->clear();  // Clear any previous data
-    // for (int i = 1; i <= kdeHistogram->GetNbinsX(); ++i) {
-    //     m_kernelA_zdata->push_back(kdeHistogram->GetBinContent(i));
-    // }
-    // //Fill Again After extracting data from the histogram and before writing the histogram
-    // outputTree->Fill();
 
     // Write the histogram to file
     kdeHistogram->Write();
