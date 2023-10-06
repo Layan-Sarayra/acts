@@ -78,22 +78,24 @@ class KDEAlgorithm final : public IAlgorithm {
    // defining output ROOT file, aka KDE_output_file.root
    TFile* outFile = nullptr;
    TTree* outputTree = nullptr;
-   TH1F* kdeHistogram = nullptr; 
+   TH1F* kdeHistogram = nullptr;
+   TH1F* recoZHistogram = nullptr;
+
    
    //from the 1st input root file
-   mutable std::vector<float> *m_recoTrack_z0;
-   mutable std::vector<float> *m_recoTrack_d0;
-   mutable std::vector<float> *m_recoTrack_ErrD0;
-   mutable std::vector<float> *m_recoTrack_ErrZ0;
-   mutable std::vector<float> *m_recoTrack_ErrD0Z0;
+    std::vector<float> *m_recoTrack_z0;
+    std::vector<float> *m_recoTrack_d0;
+    std::vector<float> *m_recoTrack_ErrD0;
+    std::vector<float> *m_recoTrack_ErrZ0;
+    std::vector<float> *m_recoTrack_ErrD0Z0;
 
    //from the 2nd input root file
-   mutable std::vector<float> *m_truthVtx_x;
-   mutable std::vector<float> *m_truthVtx_y;
-   mutable std::vector<float> *m_truthVtx_z;
-   mutable std::vector<float> *m_recoVtx_x;
-   mutable std::vector<float> *m_recoVtx_y;
-   mutable std::vector<float> *m_recoVtx_z;   
+    std::vector<float> *m_truthVtx_x;
+    std::vector<float> *m_truthVtx_y;
+    std::vector<float> *m_truthVtx_z;
+    std::vector<float> *m_recoVtx_x;
+    std::vector<float> *m_recoVtx_y;
+    std::vector<float> *m_recoVtx_z;   
 
    //for the histogram
    std::vector<float> *m_kernelA_zdata;      

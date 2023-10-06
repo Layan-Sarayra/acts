@@ -22,12 +22,13 @@ double GetGaussianPDF(const Eigen::Vector2d& x, const Eigen::Vector2d& mean, con
     Eigen::MatrixXd covMat_inverse = covMat.inverse();
     double covMat_det = covMat.determinant();
 
+
     //debugging lines... validate the covariance matrix elements
     if (covMat_det < 0) {
         std::cerr << "Determinant of covariance matrix is negative" << std::endl;
         return 0;
     }
-    if (covMat_det == 0) {
+    if (covMat.determinant() == 0) {
         std::cerr << "Covariance matrix is singular" << std::endl;
         return 0;
     }
@@ -43,7 +44,9 @@ KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
 
     ACTS_INFO("********** IN CONSTRUCTOR **********");
 
-    // Open the first ROOT file and access the TTree and set the TBranches
+
+    // Open the ROOT file and access the TTree and set the TBranches
+
     const char* rootFilePath = "/eos/user/r/rgarg/Rocky/ACTS_Project/PVFinder/Data_Layan/odd_output/tracksummary_ambi.root";
     inputFile = new TFile(rootFilePath);
     if (!inputFile || inputFile->IsZombie()) {
@@ -59,7 +62,10 @@ KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
     // call on the inputTree and enable automatic creation of classes to store structured data 
     inputTree->SetMakeClass(1);
 
+
     //Set Objects Pointer and set branches addresses
+    eventNumber = -1;
+
     d_0 = 0;
     z_0 = 0;
     sigma_d0 = 0;
@@ -67,9 +73,9 @@ KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
     sigma_d0_z0 = 0;
 
     inputTree->SetBranchAddress("eLOC0_fit", &d_0);
-    inputTree->SetBranchAddress("eLOC1_fit", &z_0);   
+    inputTree->SetBranchAddress("eLOC1_fit", &z_0);
     inputTree->SetBranchAddress("err_eLOC0_fit", &sigma_d0);
-    inputTree->SetBranchAddress("err_eLOC1_fit", &sigma_z0);   
+    inputTree->SetBranchAddress("err_eLOC1_fit", &sigma_z0);  
     inputTree->SetBranchAddress("err_eLOC0LOC1_fit", &sigma_d0_z0);
 
 
@@ -83,8 +89,17 @@ KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
     performanceTree = dynamic_cast<TTree*>(performanceFile->Get("vertexing"));
     if (!performanceTree) {
         ACTS_ERROR("Error getting TTree from ROOT file");
-        inputFile->Close();
+        performanceFile->Close();
     }
+
+    performanceTree->SetMakeClass(1);
+
+    truthX = 0;
+    truthY = 0;
+    truthZ = 0;
+    recoX = 0;
+    recoY = 0;
+    recoZ = 0;
 
     performanceTree->SetBranchAddress("truthX", &truthX);
     performanceTree->SetBranchAddress("truthY", &truthY);   
@@ -98,6 +113,20 @@ KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
     outFile = new TFile("/eos/user/l/lalsaray/KDE_output/KDE_output_file.root", "RECREATE");
     outFile->cd();
     outputTree = new TTree("PVFinderData", "PVFinderData");
+
+
+    m_recoTrack_z0 = 0;
+    m_recoTrack_d0 = 0;
+    m_recoTrack_ErrD0 = 0;
+    m_recoTrack_ErrZ0 = 0;
+    m_recoTrack_ErrD0Z0 = 0;
+    m_truthVtx_x = 0;
+    m_truthVtx_y = 0;
+    m_truthVtx_z = 0;
+    m_recoVtx_x = 0;
+    m_recoVtx_y = 0;
+    m_recoVtx_z = 0;
+    m_kernelA_zdata = 0;
 
     // write data from the first ROOT file; tracksummary_ambi.root into the output file KDE_output_file.root
     outputTree->Branch("RecoTrack_z0", &m_recoTrack_z0);
@@ -116,10 +145,7 @@ KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
 
     //write the histogram into the output file
     outputTree->Branch("KernelA_zdata", &m_kernelA_zdata);
-
-    eventNumber = -1;
-
-
+      
 }
 
 
@@ -231,7 +257,7 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
                 covMat << (*sigma_d0)[index] , (*sigma_d0_z0)[index],
                           (*sigma_d0_z0)[index], (*sigma_z0)[index];
 
-                // std::cout << "the covariance matrix = " << covMat << std::endl;                 
+
                 // std::cout << "Determinant of covMat: " << covMat.determinant() << std::endl;
 
 
@@ -239,8 +265,6 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
                 double pdf_for_this_track = GetGaussianPDF(Eigen::Vector2d(std::sqrt(p.x() * p.x() + p.y() * p.y()), p.z()), Eigen::Vector2d((*d_0)[index], (*z_0)[index]), covMat);
                 this_kernel += pdf_for_this_track;
                 this_kernel_sq += pdf_for_this_track * pdf_for_this_track;
-
-                // std::cout << "GetGaussianPDF return: " << pdf_for_this_track << std::endl;
 
             }
 
@@ -273,7 +297,6 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
 
 
         ACTS_INFO("KDE Value = " << kernel_value[0] << " z0 = " << z0_candidate);
-
     }
 
     m_recoTrack_z0->clear();
@@ -290,62 +313,51 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
     m_kernelA_zdata->clear();
 
     // filling from the first input file
-    for (size_t i = 0; i < z_0->size(); ++i) {
-       m_recoTrack_z0->push_back((*z_0)[i]);
+    for (size_t k = 0; k < z_0->size(); ++k) {
+       m_recoTrack_z0->push_back((*z_0)[k]);
+       m_recoTrack_d0->push_back((*d_0)[k]);
+       m_recoTrack_ErrZ0->push_back((*sigma_z0)[k]);
+       m_recoTrack_ErrD0->push_back((*sigma_d0)[k]);
+       m_recoTrack_ErrD0Z0->push_back((*sigma_d0_z0)[k]);
     }
-    for (size_t i = 0; i < d_0->size(); ++i) {
-       m_recoTrack_d0->push_back((*d_0)[i]);
-    }
-    for (size_t i = 0; i < sigma_z0->size(); ++i) {
-       m_recoTrack_ErrZ0->push_back((*sigma_z0)[i]);
-    }        
-    for (size_t i = 0; i < sigma_d0->size(); ++i) {
-       m_recoTrack_ErrD0->push_back((*sigma_d0)[i]);
-    }
-    for (size_t i = 0; i < sigma_d0_z0->size(); ++i) {
-       m_recoTrack_ErrD0Z0->push_back((*sigma_d0_z0)[i]);
-    }
+
+    performanceFile->cd();
+    // loading the second input file; performance_vertexing
+    performance_entry = performanceTree->LoadTree(eventNumber);
+    if (performance_entry < 0) return ActsExamples::ProcessCode::ABORT;
+    performanceTree->GetEntry(performance_entry);    
 
     // filling from the second input file
     for(size_t i = 0; i < recoX->size(); i++){
-     m_recoVtx_x->push_back((*recoX)[i]); 
-    }
-    for(size_t i = 0; i < recoY->size(); i++){
+     m_recoVtx_x->push_back((*recoX)[i]);
      m_recoVtx_y->push_back((*recoY)[i]);
-    }
-    for(size_t i = 0; i < recoZ->size(); i++){
      m_recoVtx_z->push_back((*recoZ)[i]);
     }
     for(size_t i = 0; i < truthX->size(); i++){
-     m_truthVtx_x->push_back((*truthX)[i]); 
-    }
-    for(size_t i = 0; i < truthY->size(); i++){
-     m_truthVtx_y->push_back((*truthY)[i]); 
-    }
-    for(size_t i = 0; i < truthZ->size(); i++){
+     m_truthVtx_x->push_back((*truthX)[i]);
+     m_truthVtx_y->push_back((*truthY)[i]);
      m_truthVtx_z->push_back((*truthZ)[i]); 
     }
 
     // filling the histogram branch
     for(const auto& data : accumulatedData){
         m_kernelA_zdata->push_back(data.kdeValue);
-    }
-
+    }    
 
     outputTree->Fill();
 
 
-    return ActsExamples::ProcessCode::SUCCESS;
-}
 
+    return ActsExamples::ProcessCode::SUCCESS;
+
+}
 
 ProcessCode KDEAlgorithm::finalize() {
 
     ACTS_INFO("********** IN FINALIZE **********");
 
-    outFile->cd();  // Make sure we're in the correct directory in the output file
-
-    // outputTree->Write();
+    outFile->cd();
+    outputTree->Write();
 
     // Create a histogram to store the KDE results
     kdeHistogram = new TH1F("kdeHistogram", "Kernel Density Estimation", bins, z_min, z_max);
@@ -354,9 +366,17 @@ ProcessCode KDEAlgorithm::finalize() {
     for (size_t i = 0; i < accumulatedData.size(); ++i) {
         kdeHistogram->Fill(accumulatedData[i].z0_candidate, accumulatedData[i].kdeValue);
     }
-
     // Write the histogram to file
     kdeHistogram->Write();
+
+
+    recoZHistogram = new TH1F("recoZHistogram", "Reconstructed Z Vertices", bins, z_min, z_max);
+    for(float zVal : *recoZ) {
+        recoZHistogram->Fill(zVal);
+    }
+    recoZHistogram->SetLineColor(kRed);
+    recoZHistogram->Write();
+
 
     //clean-up
 
@@ -366,6 +386,11 @@ ProcessCode KDEAlgorithm::finalize() {
         kdeHistogram = nullptr;
     }
 
+    if (recoZHistogram) {
+        delete recoZHistogram;
+        recoZHistogram = nullptr;
+    }
+
     //output file
     if (outFile) {
         outFile->Close();
@@ -373,19 +398,11 @@ ProcessCode KDEAlgorithm::finalize() {
         outFile = nullptr;
     }
 
-    //input file; tracksummary_ambi.root
+    //input file
     if (inputFile) {
         inputFile->Close();
         delete inputFile;
         inputFile = nullptr;
-    }
-
-
-    //second input file; performance_vertexing.root
-    if (performanceFile) {
-        performanceFile->Close();
-        delete performanceFile;
-        performanceFile = nullptr;
     }
 
     return ActsExamples::ProcessCode::SUCCESS;
