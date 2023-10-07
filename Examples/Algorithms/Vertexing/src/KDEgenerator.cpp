@@ -47,7 +47,7 @@ KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
 
     // Open the ROOT file and access the TTree and set the TBranches
 
-    const char* rootFilePath = "/eos/user/r/rgarg/Rocky/ACTS_Project/PVFinder/Data_Layan/odd_output/tracksummary_ambi.root";
+    const char* rootFilePath = "/eos/user/r/rgarg/Rocky/ACTS_Project/PVFinder/Data3000/tracksummary_ambi.root";
     inputFile = new TFile(rootFilePath);
     if (!inputFile || inputFile->IsZombie()) {
         ACTS_ERROR("Error opening ROOT file");
@@ -76,11 +76,11 @@ KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
     inputTree->SetBranchAddress("eLOC1_fit", &z_0);
     inputTree->SetBranchAddress("err_eLOC0_fit", &sigma_d0);
     inputTree->SetBranchAddress("err_eLOC1_fit", &sigma_z0);  
-    inputTree->SetBranchAddress("err_eLOC0LOC1_fit", &sigma_d0_z0);
+    inputTree->SetBranchAddress("cov_eLOC0_eLOC1", &sigma_d0_z0);
 
 
     // Open the second ROOT file and access the TTree and set the TBranches
-    const char* performanceFilePath = "/eos/user/r/rgarg/Rocky/ACTS_Project/PVFinder/Data_Layan/odd_output/performance_vertexing.root";
+    const char* performanceFilePath = "/eos/user/r/rgarg/Rocky/ACTS_Project/PVFinder/Data3000/performance_vertexing.root";
     performanceFile = new TFile(performanceFilePath);
     if (!performanceFile || performanceFile->IsZombie()) {
         ACTS_ERROR("Error opening ROOT file");
@@ -235,7 +235,7 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
             if ((current_z_0 - 3 * current_sigma_z0) > local_z_max) {
                 break;  // Add break statement
             }
-        } 
+        }
 
 
         KDEData dataPoint;
@@ -254,8 +254,8 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
                 int index = filteredTracks[k].second;
                 // Construct 2x2 covariance matrix using d_0 and z_0
                 Eigen::MatrixXd covMat(2, 2);
-                covMat << (*sigma_d0)[index] , (*sigma_d0_z0)[index],
-                          (*sigma_d0_z0)[index], (*sigma_z0)[index];
+                covMat << std::pow((*sigma_d0)[index],2) , (*sigma_d0_z0)[index],
+                          (*sigma_d0_z0)[index], std::pow((*sigma_z0)[index],2);
 
 
                 // std::cout << "Determinant of covMat: " << covMat.determinant() << std::endl;
@@ -296,7 +296,6 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
         accumulatedData.push_back(dataPoint);
 
 
-        ACTS_INFO("KDE Value = " << kernel_value[0] << " z0 = " << z0_candidate);
     }
 
     m_recoTrack_z0->clear();
@@ -346,8 +345,6 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
 
     outputTree->Fill();
 
-
-
     return ActsExamples::ProcessCode::SUCCESS;
 
 }
@@ -359,37 +356,37 @@ ProcessCode KDEAlgorithm::finalize() {
     outFile->cd();
     outputTree->Write();
 
-    // Create a histogram to store the KDE results
-    kdeHistogram = new TH1F("kdeHistogram", "Kernel Density Estimation", bins, z_min, z_max);
+    // // Create a histogram to store the KDE results
+    // kdeHistogram = new TH1F("kdeHistogram", "Kernel Density Estimation", bins, z_min, z_max);
 
-    // Fill the histogram using the accumulated data
-    for (size_t i = 0; i < accumulatedData.size(); ++i) {
-        kdeHistogram->Fill(accumulatedData[i].z0_candidate, accumulatedData[i].kdeValue);
-    }
-    // Write the histogram to file
-    kdeHistogram->Write();
+    // // Fill the histogram using the accumulated data
+    // for (size_t i = 0; i < accumulatedData.size(); ++i) {
+    //     kdeHistogram->Fill(accumulatedData[i].z0_candidate, accumulatedData[i].kdeValue);
+    // }
+    // // Write the histogram to file
+    // kdeHistogram->Write();
 
 
-    recoZHistogram = new TH1F("recoZHistogram", "Reconstructed Z Vertices", bins, z_min, z_max);
-    for(float zVal : *recoZ) {
-        recoZHistogram->Fill(zVal);
-    }
-    recoZHistogram->SetLineColor(kRed);
-    recoZHistogram->Write();
+    // recoZHistogram = new TH1F("recoZHistogram", "Reconstructed Z Vertices", bins, z_min, z_max);
+    // for(float zVal : *recoZ) {
+    //     recoZHistogram->Fill(zVal);
+    // }
+    // recoZHistogram->SetLineColor(kRed);
+    // recoZHistogram->Write();
 
 
     //clean-up
 
-    //histogram
-    if (kdeHistogram) {
-        delete kdeHistogram;
-        kdeHistogram = nullptr;
-    }
+    // //histogram
+    // if (kdeHistogram) {
+    //     delete kdeHistogram;
+    //     kdeHistogram = nullptr;
+    // }
 
-    if (recoZHistogram) {
-        delete recoZHistogram;
-        recoZHistogram = nullptr;
-    }
+    // if (recoZHistogram) {
+    //     delete recoZHistogram;
+    //     recoZHistogram = nullptr;
+    // }
 
     //output file
     if (outFile) {

@@ -78,8 +78,8 @@ class KDEAlgorithm final : public IAlgorithm {
    // defining output ROOT file, aka KDE_output_file.root
    TFile* outFile = nullptr;
    TTree* outputTree = nullptr;
-   TH1F* kdeHistogram = nullptr;
-   TH1F* recoZHistogram = nullptr;
+   // TH1F* kdeHistogram = nullptr;
+   // TH1F* recoZHistogram = nullptr;
 
    
    //from the 1st input root file
