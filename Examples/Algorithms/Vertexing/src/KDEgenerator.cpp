@@ -110,7 +110,7 @@ KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
 
 
     // Defining output file and output tree & branches
-    outFile = new TFile("/eos/user/l/lalsaray/KDE_output/KDE_output_file.root", "RECREATE");
+    outFile = new TFile("/eos/user/l/lalsaray/new_KDE_output/KDE_output.root", "RECREATE");
     outFile->cd();
     outputTree = new TTree("PVFinderData", "PVFinderData");
 
@@ -345,6 +345,8 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
 
     outputTree->Fill();
 
+    accumulatedData.clear();
+
     return ActsExamples::ProcessCode::SUCCESS;
 
 }
@@ -356,37 +358,7 @@ ProcessCode KDEAlgorithm::finalize() {
     outFile->cd();
     outputTree->Write();
 
-    // // Create a histogram to store the KDE results
-    // kdeHistogram = new TH1F("kdeHistogram", "Kernel Density Estimation", bins, z_min, z_max);
-
-    // // Fill the histogram using the accumulated data
-    // for (size_t i = 0; i < accumulatedData.size(); ++i) {
-    //     kdeHistogram->Fill(accumulatedData[i].z0_candidate, accumulatedData[i].kdeValue);
-    // }
-    // // Write the histogram to file
-    // kdeHistogram->Write();
-
-
-    // recoZHistogram = new TH1F("recoZHistogram", "Reconstructed Z Vertices", bins, z_min, z_max);
-    // for(float zVal : *recoZ) {
-    //     recoZHistogram->Fill(zVal);
-    // }
-    // recoZHistogram->SetLineColor(kRed);
-    // recoZHistogram->Write();
-
-
     //clean-up
-
-    // //histogram
-    // if (kdeHistogram) {
-    //     delete kdeHistogram;
-    //     kdeHistogram = nullptr;
-    // }
-
-    // if (recoZHistogram) {
-    //     delete recoZHistogram;
-    //     recoZHistogram = nullptr;
-    // }
 
     //output file
     if (outFile) {

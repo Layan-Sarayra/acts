@@ -37,8 +37,6 @@ class KDEAlgorithm final : public IAlgorithm {
     // This function will run after all events are processed
     ProcessCode finalize() override;
 
-    void copyBranches();
-
     // Accessor for configuration
     const Config& config() const { return m_cfg; }
 
