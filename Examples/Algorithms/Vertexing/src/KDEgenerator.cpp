@@ -64,7 +64,6 @@ KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
 
 
     //Set Objects Pointer and set branches addresses
-    eventNumber = -1;
 
     d_0 = 0;
     z_0 = 0;
@@ -100,6 +99,8 @@ KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
     recoX = 0;
     recoY = 0;
     recoZ = 0;
+    nTracksTruthVtx = 0;
+    nTracksRecoVtx = 0;
 
     performanceTree->SetBranchAddress("truthX", &truthX);
     performanceTree->SetBranchAddress("truthY", &truthY);   
@@ -107,10 +108,13 @@ KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
     performanceTree->SetBranchAddress("recoX", &recoX);   
     performanceTree->SetBranchAddress("recoY", &recoY);
     performanceTree->SetBranchAddress("recoZ", &recoZ);
+    performanceTree->SetBranchAddress("nTracksTruthVtx", &nTracksTruthVtx);
+    performanceTree->SetBranchAddress("nTracksRecoVtx", &nTracksRecoVtx);
 
+    eventNumber = 3;
 
     // Defining output file and output tree & branches
-    outFile = new TFile("/eos/user/l/lalsaray/new_KDE_output/KDE_output.root", "RECREATE");
+    outFile = new TFile("/eos/user/l/lalsaray/new_KDE_output/run5_for_1event_KDE_output.root", "RECREATE");
     outFile->cd();
     outputTree = new TTree("PVFinderData", "PVFinderData");
 
@@ -123,10 +127,13 @@ KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
     m_truthVtx_x = 0;
     m_truthVtx_y = 0;
     m_truthVtx_z = 0;
+    m_nTracksTruthVtx = 0;
+    m_nTracksRecoVtx = 0;
     m_recoVtx_x = 0;
     m_recoVtx_y = 0;
     m_recoVtx_z = 0;
     m_kernelA_zdata = 0;
+    m_kernelB_zdata = 0;
 
     // write data from the first ROOT file; tracksummary_ambi.root into the output file KDE_output_file.root
     outputTree->Branch("RecoTrack_z0", &m_recoTrack_z0);
@@ -142,9 +149,13 @@ KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
     outputTree->Branch("RecoVertex_x", &m_recoVtx_x);
     outputTree->Branch("RecoVertex_y", &m_recoVtx_y);
     outputTree->Branch("RecoVertex_z", &m_recoVtx_z);
+    outputTree->Branch("nTracksTruthVtx", &m_nTracksTruthVtx);
+    outputTree->Branch("nTracksRecoVtx", &m_nTracksRecoVtx);
 
     //write the histogram into the output file
     outputTree->Branch("KernelA_zdata", &m_kernelA_zdata);
+    outputTree->Branch("KernelB_zdata", &m_kernelB_zdata);
+  
       
 }
 
@@ -152,7 +163,6 @@ KDEAlgorithm::KDEAlgorithm(const Config& cfg, Acts::Logging::Level lvl)
 ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
 
     ACTS_INFO("********** IN EXECUTE **********");
-
     eventNumber++;
 
     // Load only for the current event
@@ -241,6 +251,7 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
         KDEData dataPoint;
         dataPoint.z0_candidate = z0_candidate;
         dataPoint.kdeValue = -1;
+        dataPoint.kdeValue_sq = -1;
 
         // here we define a lambda variable to evaluate the pdf, set kernel_value maximum and it's position (just defined here, used afterwards) 
         auto eval_pdf_max_and_position = [&kernel_value, &best, &dataPoint, this, &bin_center, &z0_candidate](Eigen::Vector3d& p) {
@@ -278,6 +289,7 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
 
 
             dataPoint.kdeValue = kernel_value[0];
+            dataPoint.kdeValue_sq = kernel_value[1];
 
         };
 
@@ -306,10 +318,13 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
     m_truthVtx_x->clear();
     m_truthVtx_y->clear();
     m_truthVtx_z->clear();
+    m_nTracksTruthVtx->clear();
+    m_nTracksRecoVtx->clear();
     m_recoVtx_x->clear();
     m_recoVtx_y->clear();
     m_recoVtx_z->clear();
     m_kernelA_zdata->clear();
+    m_kernelB_zdata->clear();
 
     // filling from the first input file
     for (size_t k = 0; k < z_0->size(); ++k) {
@@ -331,17 +346,26 @@ ProcessCode KDEAlgorithm::execute(const AlgorithmContext&) const {
      m_recoVtx_x->push_back((*recoX)[i]);
      m_recoVtx_y->push_back((*recoY)[i]);
      m_recoVtx_z->push_back((*recoZ)[i]);
+     m_nTracksRecoVtx->push_back((*nTracksRecoVtx)[i]);
+     std::cout<<"number of reconstructed vertices = "<< (*m_nTracksRecoVtx)[i] << " x-component = "<< (*m_recoVtx_x)[i] << " y-component = "<< (*m_recoVtx_y)[i] << " z-component = " << (*m_recoVtx_z)[i] << std::endl;     
     }
+
+    std::cout << " ________________________________________________________"<<std::endl;
+
     for(size_t i = 0; i < truthX->size(); i++){
      m_truthVtx_x->push_back((*truthX)[i]);
      m_truthVtx_y->push_back((*truthY)[i]);
-     m_truthVtx_z->push_back((*truthZ)[i]); 
+     m_truthVtx_z->push_back((*truthZ)[i]);
+     m_nTracksTruthVtx->push_back((*nTracksTruthVtx)[i]);
+     std::cout<<"number of truth vertices = "<< (*m_nTracksTruthVtx)[i] << " x-component = "<< (*m_truthVtx_x)[i] << " y-component = "<< (*m_truthVtx_y)[i] << " z-component = " << (*m_truthVtx_z)[i] << std::endl;
     }
+
 
     // filling the histogram branch
     for(const auto& data : accumulatedData){
         m_kernelA_zdata->push_back(data.kdeValue);
-    }    
+        m_kernelB_zdata->push_back(data.kdeValue_sq);
+    }
 
     outputTree->Fill();
 

@@ -18,6 +18,7 @@ namespace ActsExamples {
 struct KDEData {
     double z0_candidate;
     double kdeValue;
+    double kdeValue_sq;
 };
 
 
@@ -65,12 +66,14 @@ class KDEAlgorithm final : public IAlgorithm {
    TFile* performanceFile = nullptr;
    TTree* performanceTree = nullptr;
 
-   std::vector<float> *truthX;
-   std::vector<float> *truthY;
-   std::vector<float> *truthZ;
-   std::vector<float> *recoX;
-   std::vector<float> *recoY;
-   std::vector<float> *recoZ;
+   std::vector<double> *truthX;
+   std::vector<double> *truthY;
+   std::vector<double> *truthZ;
+   std::vector<int> *nTracksTruthVtx;
+   std::vector<int> *nTracksRecoVtx;
+   std::vector<double> *recoX;
+   std::vector<double> *recoY;
+   std::vector<double> *recoZ;
 
 
    // defining output ROOT file, aka KDE_output_file.root
@@ -88,15 +91,18 @@ class KDEAlgorithm final : public IAlgorithm {
     std::vector<float> *m_recoTrack_ErrD0Z0;
 
    //from the 2nd input root file
-    std::vector<float> *m_truthVtx_x;
-    std::vector<float> *m_truthVtx_y;
-    std::vector<float> *m_truthVtx_z;
-    std::vector<float> *m_recoVtx_x;
-    std::vector<float> *m_recoVtx_y;
-    std::vector<float> *m_recoVtx_z;   
+    std::vector<double> *m_truthVtx_x;
+    std::vector<double> *m_truthVtx_y;
+    std::vector<double> *m_truthVtx_z;
+    std::vector<double> *m_recoVtx_x;
+    std::vector<double> *m_recoVtx_y;
+    std::vector<double> *m_recoVtx_z;   
+    std::vector<int> *m_nTracksTruthVtx;
+    std::vector<int> *m_nTracksRecoVtx;   
 
    //for the histogram
-   std::vector<float> *m_kernelA_zdata;      
+   std::vector<double> *m_kernelA_zdata;
+   std::vector<double> *m_kernelB_zdata;      
 
 
    mutable std::vector<std::pair<double, int>> sortedTracks; //mutable allows you to modify a member variable within the 'const' execute function.
